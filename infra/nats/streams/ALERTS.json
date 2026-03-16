@@ -8,5 +8,5 @@
   "num_replicas": 1,
   "discard": "old",
   "max_consumers": -1,
-  "max_msgs": -1,
+  "max_msgs": -1
 }
