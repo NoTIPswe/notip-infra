@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Script per build e push di un singolo devcontainer (multi-arch) su GHCR
 # Uso:     ./release-dev.sh <stack> <versione>
 # Esempio: ./release-dev.sh nest v1.2.0

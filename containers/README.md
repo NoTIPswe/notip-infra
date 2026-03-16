@@ -4,12 +4,18 @@ Questa cartella contiene i Dockerfile multi-stage per gli stack:
 
 - angular
 - go
+- infra
 - nest
 
 Ogni Dockerfile espone almeno due target utili:
 
 - dev: immagine usata dai Dev Container in sviluppo
 - prod: immagine di runtime per deploy
+
+Per gli stack applicativi (`angular`, `nest`, `go`), lo stage `dev` include:
+
+- `pre-commit` per eseguire hook locali in modo uniforme
+- `sonar-scanner` CLI per analisi SonarQube nei repository di applicazione
 
 ## Uso con Dev Container
 
@@ -24,7 +30,11 @@ Esempio di configurazione in .devcontainer/devcontainer.json:
 }
 ```
 
-Sostituisci nest con angular o go in base allo stack.
+Sostituisci nest con angular, go o infra in base allo stack.
+
+Per questa repository (`notip-infra`) il devcontainer e gestito in `.devcontainer/devcontainer.json`
+e punta all immagine GHCR `ghcr.io/notipswe/notip-infra-dev:<versione>`.
+Le operazioni locali devono passare dall interfaccia Makefile in `infra/Makefile`.
 
 ## Build e push con release-dev.sh
 
@@ -59,6 +69,7 @@ Valori stack supportati:
 
 - angular
 - go
+- infra
 - nest
 
 Tag prodotto:
@@ -71,6 +82,12 @@ Esempio reale:
 
 ```text
 ghcr.io/notipswe/notip-go-dev:v1.2.0
+```
+
+Per lo stack infra:
+
+```text
+ghcr.io/notipswe/notip-infra-dev:v0.1.0
 ```
 
 ## Note rapide
