@@ -2,7 +2,7 @@
   "name": "DECOMMISSION",
   "subjects": ["gateway.decommissioned.>"],
   "retention": "limits",
-  "max_age": 3600000000000,
+  "max_age": 86400000000000,
   "max_bytes": -1,
   "storage": "file",
   "num_replicas": 1,

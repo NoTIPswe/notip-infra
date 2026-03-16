@@ -30,7 +30,7 @@ reset:
 # ⚠ This invalidates ALL provisioned gateway certificates.
 reset-all: 
 	@echo "WARNING: This will destroy CA volume and invalidate all gateway certs."
-	@read -p "Are you sure? [y/N] " confirm && [ "$$confirm" = "y"]
+	@read -p "Are you sure? [y/N] " confirm && [ "$$confirm" = "y" ]
 	$(COMPOSE_CMD) down -v 
 
 logs: 
@@ -39,11 +39,14 @@ logs:
 logs-svc: 
 	${COMPOSE_CMD} logs -f $(SVC)
 
-ps: 
+ps:
+	$(COMPOSE_CMD) ps
+
+keycloak-import:
 	@bash scripts/keycloak-import.sh
 
-health: 
+health:
 	@bash scripts/healthcheck.sh
 
-lint: 
-	prec-commit run --all-files
+lint:
+	pre-commit run --all-files

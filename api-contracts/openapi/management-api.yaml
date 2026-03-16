@@ -1,0 +1,1170 @@
+openapi: "3.1.0"
+
+info:
+  title: NoTIP Management API
+  version: "1.0.0"
+  description: |
+    Manages tenants, users, gateways, commands, keys, thresholds, alerts, and API clients.
+    All endpoints require a valid JWT (Bearer) issued by Keycloak realm `notip`, except /health.
+    Tenant isolation is enforced via the `tenant_id` claim — never from the URL alone.
+
+servers:
+  - url: http://localhost/api/mgmt
+    description: Local dev (via nginx)
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Health
+  - name: Admin — Tenants
+  - name: Admin — Gateways
+  - name: Users
+  - name: Gateways
+  - name: Commands
+  - name: Keys
+  - name: Alerts
+  - name: Thresholds
+  - name: API Clients
+  - name: Audit
+  - name: Costs
+
+paths:
+
+  /health:
+    get:
+      tags: [Health]
+      summary: Liveness/readiness probe
+      security: []
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  # ── Admin — Tenants (system_admin only) ──────────────────────────────────
+
+  /admin/tenants:
+    get:
+      tags: [Admin — Tenants]
+      summary: List all tenants
+      description: Requires role `system_admin`.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Tenant"
+    post:
+      tags: [Admin — Tenants]
+      summary: Create a tenant
+      description: |
+        Requires role `system_admin`.
+        Side effects: creates tenant_admin user in Keycloak, inserts default alert_config (timeout=60000ms).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTenantRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tenant"
+
+  /admin/tenants/{id}:
+    parameters:
+      - $ref: "#/components/parameters/resourceId"
+    patch:
+      tags: [Admin — Tenants]
+      summary: Update a tenant
+      description: |
+        Requires role `system_admin`.
+        Setting status=suspended blocks all tenant users in Keycloak.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchTenantRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Tenant"
+    delete:
+      tags: [Admin — Tenants]
+      summary: Delete a tenant
+      description: |
+        Requires role `system_admin`. Cascade: revokes all API clients, deletes users,
+        publishes gateway.decommissioned for each gateway, removes all DB rows.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  # ── Admin — Gateways (system_admin) ──────────────────────────────────────
+
+  /admin/gateways:
+    get:
+      tags: [Admin — Gateways]
+      summary: List all gateways (system-wide)
+      description: Requires role `system_admin`. Optional filter by tenant.
+      parameters:
+        - name: tenant_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GatewayAdmin"
+    post:
+      tags: [Admin — Gateways]
+      summary: Pre-register a gateway with factory credentials
+      description: |
+        Requires role `system_admin`. Stores factory_id + bcrypt(factory_key).
+        Sets provisioned=false. Called before the gateway first boots.
+        Also used by the Simulator Backend (service account JWT with role system_admin).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PreRegisterGatewayRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GatewayAdmin"
+
+  # ── Users (tenant_admin) ─────────────────────────────────────────────────
+
+  /users:
+    get:
+      tags: [Users]
+      summary: List users for the caller's tenant
+      description: Requires role `tenant_admin`. Tenant from JWT `tenant_id` claim.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+    post:
+      tags: [Users]
+      summary: Create a user in the caller's tenant
+      description: |
+        Requires role `tenant_admin`.
+        Creates user in Keycloak with tenant_id attribute + role. If no password provided,
+        Keycloak sends a password reset email.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserRequest"
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/{id}:
+    parameters:
+      - $ref: "#/components/parameters/resourceId"
+    patch:
+      tags: [Users]
+      summary: Update a user
+      description: Requires role `tenant_admin`. Syncs name/email/role with Keycloak.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatchUserRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users/bulk-delete:
+    post:
+      tags: [Users]
+      summary: Delete multiple users
+      description: |
+        Requires role `tenant_admin`.
+        Uses POST (not DELETE) because HTTP DELETE with body is not universally supported.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ids]
+              properties:
+                ids:
+                  type: array
+                  items:
+                    type: string
+                    format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: integer
+                  failed:
+                    type: array
+                    items:
+                      type: string
+                      format: uuid
+
+  # ── Gateways (tenant_user+) ───────────────────────────────────────────────
+
+  /gateways:
+    get:
+      tags: [Gateways]
+      summary: List gateways for the caller's tenant
+      description: Requires role `tenant_user` or above. Tenant from JWT.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Gateway"
+
+  /gateways/{id}:
+    parameters:
+      - $ref: "#/components/parameters/resourceId"
+    get:
+      tags: [Gateways]
+      summary: Get a gateway
+      description: |
+        Requires role `tenant_user` or above.
+        Note: sensors list is not returned here — use GET /api/data/{tenantId}/gateways/{gwId}/sensors.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GatewayDetail"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Gateways]
+      summary: Update gateway metadata
+      description: Requires role `tenant_admin`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Gateway"
+    delete:
+      tags: [Gateways]
+      summary: Decommission a gateway
+      description: |
+        Requires role `tenant_admin`.
+        Sets status=suspended, sets revoked_at on the AES key, publishes
+        gateway.decommissioned.{tenantId}.{gatewayId} on NATS.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  # ── Commands (/cmd/{gwId}/*) ──────────────────────────────────────────────
+
+  /cmd/{gwId}/config:
+    parameters:
+      - $ref: "#/components/parameters/gwId"
+    post:
+      tags: [Commands]
+      summary: Send a config_update command to a gateway
+      description: |
+        Requires role `tenant_admin`. Verifies gateway belongs to caller's tenant.
+        Generates commandId, persists with status=queued, publishes to
+        command.gw.{tenantId}.{gatewayId} with type=config_update.
+        A periodic job (every 30s) marks commands queued > 180s as timeout.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                send_frequency_ms:
+                  type: integer
+                status:
+                  type: string
+      responses:
+        "202":
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandQueued"
+
+  /cmd/{gwId}/firmware:
+    parameters:
+      - $ref: "#/components/parameters/gwId"
+    post:
+      tags: [Commands]
+      summary: Send a firmware_push command to a gateway
+      description: |
+        Requires role `tenant_admin`.
+        Publishes type=firmware_push with { firmware_version, download_url }.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [firmware_version, download_url]
+              properties:
+                firmware_version:
+                  type: string
+                download_url:
+                  type: string
+                  format: uri
+      responses:
+        "202":
+          description: Accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandQueued"
+
+  /cmd/{gwId}/status/{commandId}:
+    parameters:
+      - $ref: "#/components/parameters/gwId"
+      - name: commandId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    get:
+      tags: [Commands]
+      summary: Get command status
+      description: Requires role `tenant_admin`. Reads from commands table.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommandStatus"
+
+  # ── Keys ──────────────────────────────────────────────────────────────────
+
+  /keys:
+    get:
+      tags: [Keys]
+      summary: Fetch AES gateway key(s) for the caller's tenant
+      description: |
+        Requires role `tenant_user` or above.
+        Without query param: returns all active keys for the tenant.
+        With gateway_id: returns the key for that specific gateway only.
+
+        Security rules:
+        - tenant_id in JWT must match the gateway's tenant_id in DB (cross-tenant → 403)
+        - revoked_at set on key (decommissioned gateway) → 403
+        - JWT contains `act` claim (admin impersonation) → 403 (impersonation cannot exfiltrate keys)
+
+        The key_material is decrypted from DB using DB_ENCRYPTION_KEY in-memory
+        only for the duration of this response — never logged.
+      parameters:
+        - name: gateway_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/GatewayKey"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+
+  # ── Alerts ────────────────────────────────────────────────────────────────
+
+  /alerts:
+    get:
+      tags: [Alerts]
+      summary: List alerts for the caller's tenant
+      description: |
+        Requires role `tenant_user` or above. Level 1 alerts only (gateway-offline).
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: gateway_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Alert"
+
+  /alerts/config:
+    get:
+      tags: [Alerts]
+      summary: Get alert configuration for the caller's tenant
+      description: Requires role `tenant_user` or above.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertConfig"
+
+  /alerts/config/default:
+    put:
+      tags: [Alerts]
+      summary: Update default alert timeout for the caller's tenant
+      description: Requires role `tenant_admin`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [default_unreachable_timeout_ms]
+              properties:
+                default_unreachable_timeout_ms:
+                  type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertConfigDefault"
+
+  /alerts/config/gateway/{id}:
+    parameters:
+      - $ref: "#/components/parameters/resourceId"
+    put:
+      tags: [Alerts]
+      summary: Set per-gateway alert timeout override
+      description: Requires role `tenant_admin`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [gateway_unreachable_timeout_ms]
+              properties:
+                gateway_unreachable_timeout_ms:
+                  type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertConfigGateway"
+
+  # ── Thresholds ────────────────────────────────────────────────────────────
+
+  /thresholds:
+    get:
+      tags: [Thresholds]
+      summary: Get sensor thresholds for the caller's tenant
+      description: |
+        Requires role `tenant_user` or above.
+        Returns default thresholds per sensor_type + per-sensorId overrides.
+        Used by the frontend for visual highlighting (client-side, not persistent alerts).
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Threshold"
+
+  /thresholds/default:
+    put:
+      tags: [Thresholds]
+      summary: Set default threshold for a sensor type
+      description: Requires role `tenant_admin`. Upsert.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ThresholdDefaultRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Threshold"
+
+  /thresholds/type/{sensor_type}:
+    parameters:
+      - name: sensor_type
+        in: path
+        required: true
+        schema:
+          type: string
+          enum: [temperature, humidity, movement, pressure, biometric]
+    delete:
+      tags: [Thresholds]
+      summary: Delete default threshold for a sensor type
+      description: Requires role `tenant_admin`. Frontend falls back to no highlighting.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  /thresholds/sensor/{id}:
+    parameters:
+      - $ref: "#/components/parameters/resourceId"
+    put:
+      tags: [Thresholds]
+      summary: Set per-sensorId threshold override
+      description: |
+        Requires role `tenant_admin`. {id} is the sensorId UUID (self-declared).
+        No FK validation — sensorId is not registered in any DB table.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ThresholdSensorRequest"
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Threshold"
+    delete:
+      tags: [Thresholds]
+      summary: Delete per-sensorId threshold override
+      description: Requires role `tenant_admin`. Falls back to sensor_type default.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  # ── API Clients ───────────────────────────────────────────────────────────
+
+  /api-clients:
+    get:
+      tags: [API Clients]
+      summary: List API clients for the caller's tenant
+      description: Requires role `tenant_admin`.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ApiClient"
+    post:
+      tags: [API Clients]
+      summary: Create an API client (OAuth2 client_credentials)
+      description: |
+        Requires role `tenant_admin`.
+        Creates a Keycloak OAuth2 confidential client via Admin API,
+        sets tenant_id attribute on its service account.
+        Returns client_secret once — not stored by the platform.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiClientCreated"
+
+  /api-clients/{id}:
+    parameters:
+      - $ref: "#/components/parameters/resourceId"
+    delete:
+      tags: [API Clients]
+      summary: Revoke an API client
+      description: |
+        Requires role `tenant_admin`. Disables and deletes the Keycloak client.
+        All subsequent token requests for this client fail immediately.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageResponse"
+
+  # ── Audit Log ─────────────────────────────────────────────────────────────
+
+  /audit-log:
+    get:
+      tags: [Audit]
+      summary: Query audit log for the caller's tenant
+      description: Requires role `tenant_admin`. Priority desirable.
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: user_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: action
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AuditLogEntry"
+
+  # ── Costs ─────────────────────────────────────────────────────────────────
+
+  /costs:
+    get:
+      tags: [Costs]
+      summary: Get storage cost estimate for the caller's tenant
+      description: |
+        Requires role `tenant_admin`.
+        Fetches storage size via NATS Request-Reply (internal.cost → data-api).
+        Prices configurable via environment variables.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CostEstimate"
+
+# ────────────────────────────────────────────────────────────────────────────
+# COMPONENTS
+# ────────────────────────────────────────────────────────────────────────────
+
+components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    resourceId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    gwId:
+      name: gwId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    NotFound:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Forbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok]
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+
+    MessageResponse:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+
+    Tenant:
+      type: object
+      required: [id, name, status, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        status:
+          type: string
+          enum: [active, suspended]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateTenantRequest:
+      type: object
+      required: [name, adminEmail, adminName]
+      properties:
+        name:
+          type: string
+        adminEmail:
+          type: string
+          format: email
+        adminName:
+          type: string
+        adminPassword:
+          type: string
+          description: If omitted, Keycloak sends a password reset email.
+
+    PatchTenantRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+          enum: [active, suspended]
+        suspension_interval_days:
+          type: integer
+
+    User:
+      type: object
+      required: [id, name, email, role, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [tenant_admin, tenant_user]
+        last_access:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    CreateUserRequest:
+      type: object
+      required: [name, email, role]
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [tenant_admin, tenant_user]
+        password:
+          type: string
+          description: If omitted, Keycloak sends a password reset email.
+
+    PatchUserRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [tenant_admin, tenant_user]
+
+    GatewayAdmin:
+      type: object
+      required: [id, tenant_id, factory_id, provisioned]
+      properties:
+        id:
+          type: string
+          format: uuid
+        tenant_id:
+          type: string
+          format: uuid
+        factory_id:
+          type: string
+
+        provisioned:
+          type: boolean
+
+    PreRegisterGatewayRequest:
+      type: object
+      required: [factory_id, tenant_id, factory_key]
+      properties:
+        factory_id:
+          type: string
+          description: Gateway factory identifier (from vendor).
+        tenant_id:
+          type: string
+          format: uuid
+        factory_key:
+          type: string
+          description: |
+            Pre-shared secret (≥32 random bytes). Stored as bcrypt hash.
+            The raw key is never stored by the platform. Use-once.
+
+    Gateway:
+      type: object
+      required: [id, name, status, provisioned, last_seen_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        status:
+          type: string
+          enum: [online, offline, suspended]
+        provisioned:
+          type: boolean
+        last_seen_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    GatewayDetail:
+      allOf:
+        - $ref: "#/components/schemas/Gateway"
+        - type: object
+          properties:
+            firmware_version:
+              type: string
+              nullable: true
+            send_frequency_ms:
+              type: integer
+              nullable: true
+
+    CommandQueued:
+      type: object
+      required: [commandId, status, issuedAt]
+      properties:
+        commandId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [queued]
+        issuedAt:
+          type: string
+          format: date-time
+
+    CommandStatus:
+      type: object
+      required: [commandId, status]
+      properties:
+        commandId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [queued, ack, nack, expired, timeout]
+        timestamp:
+          type: string
+          format: date-time
+          nullable: true
+
+    GatewayKey:
+      type: object
+      required: [gateway_id, key_material, key_version]
+      properties:
+        gateway_id:
+          type: string
+          format: uuid
+        key_material:
+          type: string
+          description: Base64-encoded 256-bit AES key. Handle securely — import to WebCrypto with extractable:false.
+        key_version:
+          type: integer
+
+    Alert:
+      type: object
+      required: [id, type, gateway_id, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [gateway_offline]
+        gateway_id:
+          type: string
+          format: uuid
+        details:
+          type: object
+          additionalProperties: true
+        created_at:
+          type: string
+          format: date-time
+
+    AlertConfig:
+      type: object
+      required: [default_timeout_ms, gateway_overrides]
+      properties:
+        default_timeout_ms:
+          type: integer
+        gateway_overrides:
+          type: array
+          items:
+            $ref: "#/components/schemas/AlertConfigGateway"
+
+    AlertConfigDefault:
+      type: object
+      required: [tenant_id, timeout_ms, updated_at]
+      properties:
+        tenant_id:
+          type: string
+          format: uuid
+        timeout_ms:
+          type: integer
+        updated_at:
+          type: string
+          format: date-time
+
+    AlertConfigGateway:
+      type: object
+      required: [gateway_id, timeout_ms, updated_at]
+      properties:
+        gateway_id:
+          type: string
+          format: uuid
+        timeout_ms:
+          type: integer
+        updated_at:
+          type: string
+          format: date-time
+
+    Threshold:
+      type: object
+      properties:
+        sensor_type:
+          type: string
+          enum: [temperature, humidity, movement, pressure, biometric]
+          nullable: true
+        sensor_id:
+          type: string
+          format: uuid
+          nullable: true
+        min_value:
+          type: number
+        max_value:
+          type: number
+        updated_at:
+          type: string
+          format: date-time
+
+    ThresholdDefaultRequest:
+      type: object
+      required: [sensor_type, min_value, max_value]
+      properties:
+        sensor_type:
+          type: string
+          enum: [temperature, humidity, movement, pressure, biometric]
+        min_value:
+          type: number
+        max_value:
+          type: number
+
+    ThresholdSensorRequest:
+      type: object
+      required: [min_value, max_value]
+      properties:
+        min_value:
+          type: number
+        max_value:
+          type: number
+
+    ApiClient:
+      type: object
+      required: [id, name, client_id, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        client_id:
+          type: string
+          description: Keycloak client_id (used in token requests).
+        created_at:
+          type: string
+          format: date-time
+
+    ApiClientCreated:
+      allOf:
+        - $ref: "#/components/schemas/ApiClient"
+        - type: object
+          required: [client_secret]
+          properties:
+            client_secret:
+              type: string
+              description: Returned once. Not stored by the platform.
+
+    AuditLogEntry:
+      type: object
+      required: [id, user_id, action, resource, timestamp]
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        action:
+          type: string
+        resource:
+          type: string
+        details:
+          type: object
+          additionalProperties: true
+        timestamp:
+          type: string
+          format: date-time
+
+    CostEstimate:
+      type: object
+      required: [storage_gb, bandwidth_gb]
+      properties:
+        storage_gb:
+          type: number
+        bandwidth_gb:
+          type: number

@@ -1,0 +1,27 @@
+# Dev-only overrides: expose internal ports to the host so developers can
+# connect directly with DB clients, NATS CLI, Keycloak Admin UI, etc.
+# This file is automatically merged by docker compose when present.
+
+name: notip
+
+services:
+
+  keycloak-db:
+    ports:
+      - "5434:5432"
+
+  mgmt-db:
+    ports:
+      - "5432:5432"
+
+  measures-db:
+    ports:
+      - "5433:5432"
+
+  nats:
+    ports:
+      - "8222:8222"   # NATS monitoring dashboard
+
+  keycloak:
+    ports:
+      - "8080:8080"   # Keycloak Admin UI (also reachable via nginx /auth)

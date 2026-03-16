@@ -3,7 +3,19 @@ name: lint
 on:
   push:
     branches: ["**"]
+    paths:
+      - "infra/**"
+      - "api-contracts/**"
+      - "devcontainers/**"
+      - ".pre-commit-config.yaml"
+      - ".github/workflows/lint.yml"
   pull_request:
+    paths:
+      - "infra/**"
+      - "api-contracts/**"
+      - "devcontainers/**"
+      - ".pre-commit-config.yaml"
+      - ".github/workflows/lint.yml"
 
 jobs:
   pre-commit:
