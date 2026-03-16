@@ -1,3 +1,5 @@
+# TODO: put tags on all channels to indicate the services involved (see Norme di Progetto)
+
 asyncapi: "2.6.0"
 
 info:
