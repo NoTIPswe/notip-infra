@@ -1,0 +1,17 @@
+# Secrets and env
+.env
+secrets/*
+!secrets/.gitkeep 
+
+# TLS material 
+*.key 
+*.pem
+*.crt
+*.csr
+
+# Local compose ovverides (for debuggin and local mounting)
+docker-compose.local.yml
+
+#OS
+.DS_Store
+Thumbs.db

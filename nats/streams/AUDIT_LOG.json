@@ -1,0 +1,12 @@
+{
+  "name": "AUDIT_LOG",
+  "subjects": ["log.audit.>"],
+  "retention": "limits",
+  "max_age": 7776000000000000,
+  "max_bytes": -1,
+  "storage": "file",
+  "num_replicas": 1,
+  "discard": "old",
+  "max_consumers": -1,
+  "max_msgs": -1
+}
