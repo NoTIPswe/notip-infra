@@ -1,0 +1,393 @@
+name: notip
+
+# All relative paths are resolved from the repo root because the Makefile
+# passes --project-directory . to docker compose.
+
+services:
+
+  # ── CA + cert generation (runs once, exits 0) ───────────────────────────────
+  provisioning-init:
+    build:
+      context: .
+      dockerfile: docker/provisioning-init/Dockerfile
+    command: ["/bin/bash", "/scripts/provisioning-init.sh"]
+    volumes:
+      - ./scripts/provisioning-init.sh:/scripts/provisioning-init.sh:ro
+      - ca_certs:/certs
+    restart: "no"
+
+  nats:
+    image: ${NATS_IMAGE:-nats:2.12-alpine}
+    command: ["-c", "/etc/nats/nats-server.conf"]
+    ports:
+      - "4222:4222"   # mTLS — exposed for IoT gateways
+      # 8222 (monitoring) intentionally NOT exposed; use docker exec or override
+    volumes:
+      - ./nats/nats-server.conf:/etc/nats/nats-server.conf:ro
+      - ca_certs:/certs:ro
+      - nats_data:/data
+    depends_on:
+      provisioning-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8222/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 15
+      start_period: 5s
+    restart: unless-stopped
+    networks:
+      - internal
+
+  # JetStream stream bootstrap (runs once, exits 0)
+  nats-streams-init:
+    image: natsio/nats-box:latest
+    command: ["/bin/sh", "/scripts/nats-streams-init.sh"]
+    environment:
+      NATS_URL:  "tls://nats:4222"
+      NATS_CA:   "/certs/ca.crt"
+      NATS_CERT: "/certs/management-api.crt"
+      NATS_KEY:  "/certs/management-api.key"
+    volumes:
+      - ./scripts/nats-streams-init.sh:/scripts/nats-streams-init.sh:ro
+      - ./nats/streams:/streams:ro
+      - ca_certs:/certs:ro
+    depends_on:
+      nats:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - internal
+
+  # Databases
+  keycloak-db:
+    image: ${POSTGRES_IMAGE:-postgres:18.3-alpine}
+    environment:
+      POSTGRES_DB:            keycloak
+      POSTGRES_USER:          keycloak
+      POSTGRES_PASSWORD_FILE: /run/secrets/keycloak_db_password
+    secrets:
+      - keycloak_db_password
+    volumes:
+      - keycloak_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak -d keycloak"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - internal
+
+  mgmt-db:
+    image: ${POSTGRES_IMAGE:-postgres:18.3-alpine}
+    environment:
+      POSTGRES_DB:            ${MGMT_DB_NAME:-notip_mgmt}
+      POSTGRES_USER:          ${MGMT_DB_USER:-notip_mgmt}
+      POSTGRES_PASSWORD_FILE: /run/secrets/mgmt_db_password
+    secrets:
+      - mgmt_db_password
+    volumes:
+      - mgmt_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${MGMT_DB_USER:-notip_mgmt} -d ${MGMT_DB_NAME:-notip_mgmt}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - internal
+
+  measures-db:
+    image: ${TIMESCALE_IMAGE:-timescale/timescaledb:latest-pg17}
+    environment:
+      POSTGRES_DB:            ${MEASURES_DB_NAME:-notip_measures}
+      POSTGRES_USER:          ${MEASURES_DB_USER:-notip_measures}
+      POSTGRES_PASSWORD_FILE: /run/secrets/measures_db_password
+    secrets:
+      - measures_db_password
+    volumes:
+      - measures_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${MEASURES_DB_USER:-notip_measures} -d ${MEASURES_DB_NAME:-notip_measures}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - internal
+
+  # Keycloak
+  keycloak:
+    image: ${KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:26.5}
+    command:
+      - start-dev
+      - --db=postgres
+      - --db-url=jdbc:postgresql://keycloak-db:5432/keycloak
+      - --db-username=keycloak
+      - --http-relative-path=/auth
+      - --health-enabled=true
+      - --metrics-enabled=true
+    environment:
+      KC_DB_PASSWORD:              ${KEYCLOAK_DB_PASSWORD}
+      KEYCLOAK_ADMIN:              ${KEYCLOAK_ADMIN_USER:-admin}
+      KEYCLOAK_ADMIN_PASSWORD:     ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_HOSTNAME:                 ${KEYCLOAK_HOSTNAME:-localhost}
+      KC_HOSTNAME_STRICT:          "false"
+      KC_HOSTNAME_STRICT_HTTPS:    "false"
+    depends_on:
+      keycloak-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/auth/health/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 40s
+    restart: unless-stopped
+    networks:
+      - internal
+
+  # Realm import (runs once, exits 0)
+  keycloak-init:
+    build:
+      context: .
+      dockerfile: docker/init-tools/Dockerfile
+    command: ["/bin/bash", "/scripts/keycloak-import.sh"]
+    environment:
+      KEYCLOAK_URL:        "http://keycloak:8080"
+      KEYCLOAK_ADMIN_USER: ${KEYCLOAK_ADMIN_USER:-admin}
+    volumes:
+      - ./scripts/keycloak-import.sh:/scripts/keycloak-import.sh:ro
+      - ./keycloak:/keycloak:ro
+    secrets:
+      - keycloak_admin_password
+      - keycloak_mgmt_client_secret
+      - keycloak_simulator_client_secret
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - internal
+
+  # Application services
+  management-api:
+    image: ${MGMT_API_IMAGE:-ghcr.io/notip/management-api:latest}
+    environment:
+      PORT:                            3001
+      DB_HOST:                         ${MGMT_DB_HOST:-mgmt-db}
+      DB_PORT:                         ${MGMT_DB_PORT:-5432}
+      DB_NAME:                         ${MGMT_DB_NAME:-notip_mgmt}
+      DB_USER:                         ${MGMT_DB_USER:-notip_mgmt}
+      DB_PASSWORD_FILE:                /run/secrets/mgmt_db_password
+      DB_ENCRYPTION_KEY_FILE:          /run/secrets/db_encryption_key
+      KEYCLOAK_URL:                    http://keycloak:8080/auth
+      KEYCLOAK_REALM:                  ${KEYCLOAK_REALM:-notip}
+      KEYCLOAK_MGMT_CLIENT_ID:         ${KEYCLOAK_MGMT_CLIENT_ID:-notip-mgmt-backend}
+      KEYCLOAK_MGMT_CLIENT_SECRET_FILE: /run/secrets/keycloak_mgmt_client_secret
+      NATS_URL:                        tls://nats:4222
+      NATS_TLS_CA:                     /certs/ca.crt
+      NATS_TLS_CERT:                   /certs/management-api.crt
+      NATS_TLS_KEY:                    /certs/management-api.key
+    secrets:
+      - mgmt_db_password
+      - db_encryption_key
+      - keycloak_mgmt_client_secret
+    volumes:
+      - ca_certs:/certs:ro
+    depends_on:
+      nats-streams-init:
+        condition: service_completed_successfully
+      keycloak-init:
+        condition: service_completed_successfully
+      mgmt-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3001/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - internal
+
+  data-api:
+    image: ${DATA_API_IMAGE:-ghcr.io/notip/data-api:latest}
+    environment:
+      PORT:             3002
+      DB_HOST:          ${MEASURES_DB_HOST:-measures-db}
+      DB_PORT:          ${MEASURES_DB_PORT:-5432}
+      DB_NAME:          ${MEASURES_DB_NAME:-notip_measures}
+      DB_USER:          ${MEASURES_DB_USER:-notip_measures}
+      DB_PASSWORD_FILE: /run/secrets/measures_db_password
+      KEYCLOAK_URL:     http://keycloak:8080/auth
+      KEYCLOAK_REALM:   ${KEYCLOAK_REALM:-notip}
+      NATS_URL:         tls://nats:4222
+      NATS_TLS_CA:      /certs/ca.crt
+      NATS_TLS_CERT:    /certs/data-api.crt
+      NATS_TLS_KEY:     /certs/data-api.key
+    secrets:
+      - measures_db_password
+    volumes:
+      - ca_certs:/certs:ro
+    depends_on:
+      nats-streams-init:
+        condition: service_completed_successfully
+      measures-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3002/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - internal
+
+  data-consumer:
+    image: ${DATA_CONSUMER_IMAGE:-ghcr.io/notip/data-consumer:latest}
+    environment:
+      DB_HOST:                  ${MEASURES_DB_HOST:-measures-db}
+      DB_PORT:                  ${MEASURES_DB_PORT:-5432}
+      DB_NAME:                  ${MEASURES_DB_NAME:-notip_measures}
+      DB_USER:                  ${MEASURES_DB_USER:-notip_measures}
+      DB_PASSWORD_FILE:         /run/secrets/measures_db_password
+      NATS_URL:                 tls://nats:4222
+      NATS_TLS_CA:              /certs/ca.crt
+      NATS_TLS_CERT:            /certs/data-consumer.crt
+      NATS_TLS_KEY:             /certs/data-consumer.key
+      HEARTBEAT_GRACE_PERIOD_MS: "120000"
+      GATEWAY_BUFFER_SIZE:      "1000"
+    secrets:
+      - measures_db_password
+    volumes:
+      - ca_certs:/certs:ro
+    depends_on:
+      nats-streams-init:
+        condition: service_completed_successfully
+      measures-db:
+        condition: service_healthy
+      management-api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - internal
+
+  provisioning-service:
+    image: ${PROVISIONING_IMAGE:-ghcr.io/notip/provisioning-service:latest}
+    environment:
+      PORT:         3004
+      NATS_URL:     tls://nats:4222
+      NATS_TLS_CA:  /certs/ca.crt
+      NATS_TLS_CERT: /certs/provisioning.crt
+      NATS_TLS_KEY:  /certs/provisioning.key
+      CERTS_DIR:    /certs
+    volumes:
+      - ca_certs:/certs   # read-write: signs gateway CSRs with ca.key
+    depends_on:
+      nats-streams-init:
+        condition: service_completed_successfully
+      management-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3004/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    restart: unless-stopped
+    networks:
+      - internal
+
+  frontend:
+    image: ${FRONTEND_IMAGE:-ghcr.io/notip/frontend:latest}
+    restart: unless-stopped
+    networks:
+      - internal
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "80:80"
+      # - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+    depends_on:
+      management-api:
+        condition: service_healthy
+      data-api:
+        condition: service_healthy
+      provisioning-service:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - internal
+
+  # Simulator (opt-in: docker compose --profile simulator up)
+  simulator:
+    image: ${SIMULATOR_IMAGE:-ghcr.io/notip/simulator:latest}
+    environment:
+      SIMULATOR_PORT:                      ${SIMULATOR_PORT:-8090}
+      KEYCLOAK_URL:                        http://keycloak:8080/auth
+      KEYCLOAK_REALM:                      ${KEYCLOAK_REALM:-notip}
+      KEYCLOAK_SIMULATOR_CLIENT_ID:        ${KEYCLOAK_SIMULATOR_CLIENT_ID:-notip-simulator-backend}
+      KEYCLOAK_SIMULATOR_CLIENT_SECRET_FILE: /run/secrets/keycloak_simulator_client_secret
+      MGMT_API_URL:                        http://nginx/api/mgmt
+      PROVISIONING_URL:                    http://nginx/api/provision
+      NATS_URL:                            tls://nats:4222
+      NATS_TLS_CA:                         /certs/ca.crt
+      NATS_TLS_CERT:                       /certs/simulator.crt
+      NATS_TLS_KEY:                        /certs/simulator.key
+    secrets:
+      - keycloak_simulator_client_secret
+    volumes:
+      - ca_certs:/certs:ro
+    profiles:
+      - simulator
+    depends_on:
+      nats-streams-init:
+        condition: service_completed_successfully
+      management-api:
+        condition: service_healthy
+      provisioning-service:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - internal
+
+# Networks
+networks:
+  internal:
+    driver: bridge
+
+# Volumes
+volumes:
+  ca_certs:
+    # DO NOT delete this volume without re-provisioning all gateways.
+    # Destroying it invalidates all gateway mTLS certificates.
+    # Use `make reset` (preserves this volume) not `make reset-all`.
+  nats_data:
+  keycloak_db:
+  mgmt_db:
+  measures_db:
+
+# Secrets
+secrets:
+  db_encryption_key:
+    file: ./secrets/db_encryption_key
+  mgmt_db_password:
+    file: ./secrets/mgmt_db_password
+  measures_db_password:
+    file: ./secrets/measures_db_password
+  keycloak_admin_password:
+    file: ./secrets/keycloak_admin_password
+  keycloak_db_password:
+    file: ./secrets/keycloak_db_password
+  keycloak_mgmt_client_secret:
+    file: ./secrets/keycloak_mgmt_client_secret
+  keycloak_simulator_client_secret:
+    file: ./secrets/keycloak_simulator_client_secret

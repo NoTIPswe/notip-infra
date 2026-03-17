@@ -1,0 +1,12 @@
+{
+  "name": "COMMAND_ACKS",
+  "subjects": ["command.ack.>"],
+  "retention": "limits",
+  "max_age": 300000000000,
+  "max_bytes": -1,
+  "storage": "file",
+  "num_replicas": 1,
+  "discard": "old",
+  "max_consumers": -1,
+  "max_msgs": -1
+}

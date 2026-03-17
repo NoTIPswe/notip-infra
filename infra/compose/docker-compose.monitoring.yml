@@ -1,0 +1,55 @@
+# Monitoring stack, started separately with 'make up-monitoring'
+# Attaches to the same docker network ad the main stack
+
+name: notip-monitoring
+
+services:
+  nats-exporter:
+    image: natsio/prometheus-nats-exporter:0.19.1
+    command:
+      - "-varz"
+      - "-jsz=all"
+      - "http://nats:8222"
+    networks:
+      - notip_internal
+
+  prometheus:
+    image: prom/prometheus:v3.10.0
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=15d"
+    volumes:
+      - ../monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    depends_on:
+      - nats-exporter
+    networks:
+      - notip_internal
+
+  grafana:
+    image: grafana/grafana:12.3
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED:  "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: "Viewer"
+      GF_SERVER_ROOT_URL:         "http://localhost:3000"
+    volumes:
+      - ../monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    networks:
+      - notip_internal
+
+volumes:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  notip_internal:
+    external: true
+    name: notip_internal
