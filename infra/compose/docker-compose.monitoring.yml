@@ -1,5 +1,5 @@
 # Monitoring stack, started separately with 'make up-monitoring'
-# Attaches to the same docker network ad the main stack 
+# Attaches to the same docker network ad the main stack
 
 name: notip-monitoring
 

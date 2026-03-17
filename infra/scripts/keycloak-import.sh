@@ -10,7 +10,7 @@ MGMT_SECRET="$(cat /run/secrets/keycloak_mgmt_client_secret)"
 SIM_SECRET="$(cat /run/secrets/keycloak_simulator_client_secret)"
 REALM_FILE="/keycloak/realm-export.json"
 
-# Wait for Keycloak 
+# Wait for Keycloak
 echo "==> Waiting for Keycloak"
 until curl -sf "$KEYCLOAK_URL/auth/health/ready" > /dev/null 2>&1; do
   echo "  not ready, retrying in 3s..."
@@ -18,7 +18,7 @@ until curl -sf "$KEYCLOAK_URL/auth/health/ready" > /dev/null 2>&1; do
 done
 echo "  ready."
 
-# Admin token 
+# Admin token
 get_token() {
   curl -sf \
     "$KEYCLOAK_URL/auth/realms/master/protocol/openid-connect/token" \
@@ -31,7 +31,7 @@ get_token() {
 
 TOKEN=$(get_token)
 
-# Import realm 
+# Import realm
 echo "==> Checking realm 'notip'"
 HTTP_STATUS=$(curl -so /dev/null -w "%{http_code}" \
   -H "Authorization: Bearer $TOKEN" \
@@ -50,7 +50,7 @@ else
   TOKEN=$(get_token)
 fi
 
-# Helper: get internal UUID for a client 
+# Helper: get internal UUID for a client
 get_client_uuid() {
   curl -sf \
     -H "Authorization: Bearer $TOKEN" \
@@ -58,7 +58,7 @@ get_client_uuid() {
     | jq -r '.[0].id'
 }
 
-# Helper: set client secret 
+# Helper: set client secret
 set_client_secret() {
   local client_id="$1"
   local secret="$2"
@@ -76,7 +76,7 @@ set_client_secret() {
 set_client_secret "notip-mgmt-backend"      "$MGMT_SECRET"
 set_client_secret "notip-simulator-backend" "$SIM_SECRET"
 
-# Assign system_admin role to notip-mgmt-backend service account 
+# Assign system_admin role to notip-mgmt-backend service account
 echo "==> Assigning manage-clients role to notip-mgmt-backend service account"
 MGMT_UUID=$(get_client_uuid "notip-mgmt-backend")
 MGMT_SA_ID=$(curl -sf \
@@ -92,7 +92,7 @@ curl -sf -X PUT \
   -d '{"attributes":{"role":["system_admin"]}}'
 echo "  done."
 
-# Assign system_admin to notip-simulator-backend service account 
+# Assign system_admin to notip-simulator-backend service account
 echo "==> Setting role=system_admin on notip-simulator-backend service account"
 SIM_UUID=$(get_client_uuid "notip-simulator-backend")
 SIM_SA_ID=$(curl -sf \
@@ -107,7 +107,7 @@ curl -sf -X PUT \
   -d '{"attributes":{"role":["system_admin"]}}'
 echo "  done."
 
-# Grant manage-clients realm role to notip-mgmt-backend 
+# Grant manage-clients realm role to notip-mgmt-backend
 echo "==> Granting manage-clients realm role to notip-mgmt-backend"
 MANAGE_CLIENTS_ROLE=$(curl -sf \
   -H "Authorization: Bearer $TOKEN" \

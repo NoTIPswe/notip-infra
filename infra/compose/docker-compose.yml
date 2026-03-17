@@ -39,7 +39,7 @@ services:
     networks:
       - internal
 
-  # JetStream stream bootstrap (runs once, exits 0) 
+  # JetStream stream bootstrap (runs once, exits 0)
   nats-streams-init:
     image: natsio/nats-box:latest
     command: ["/bin/sh", "/scripts/nats-streams-init.sh"]
@@ -59,7 +59,7 @@ services:
     networks:
       - internal
 
-  # Databases 
+  # Databases
   keycloak-db:
     image: ${POSTGRES_IMAGE:-postgres:18.3-alpine}
     environment:
@@ -117,7 +117,7 @@ services:
     networks:
       - internal
 
-  # Keycloak 
+  # Keycloak
   keycloak:
     image: ${KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:26.5}
     command:
@@ -148,7 +148,7 @@ services:
     networks:
       - internal
 
-  # Realm import (runs once, exits 0) 
+  # Realm import (runs once, exits 0)
   keycloak-init:
     build:
       context: .
@@ -359,12 +359,12 @@ services:
     networks:
       - internal
 
-# Networks 
+# Networks
 networks:
   internal:
     driver: bridge
 
-# Volumes 
+# Volumes
 volumes:
   ca_certs:
     # DO NOT delete this volume without re-provisioning all gateways.
@@ -375,7 +375,7 @@ volumes:
   mgmt_db:
   measures_db:
 
-# Secrets 
+# Secrets
 secrets:
   db_encryption_key:
     file: ./secrets/db_encryption_key

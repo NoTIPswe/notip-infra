@@ -17,7 +17,7 @@ down:
 	$(COMPOSE_CMD) down
 
 # Bring stack down and remove all named volumes EXCEPT notip_ca_certs
-# Preserves provisioned gateway certificates. 
+# Preserves provisioned gateway certificates.
 reset:
 	$(COMPOSE_CMD) down
 	@docker volume ls --format '{{.Name}}' \
@@ -28,15 +28,15 @@ reset:
 
 # Destroy everything including the CA volume.
 # ⚠ This invalidates ALL provisioned gateway certificates.
-reset-all: 
+reset-all:
 	@echo "WARNING: This will destroy CA volume and invalidate all gateway certs."
 	@read -p "Are you sure? [y/N] " confirm && [ "$$confirm" = "y" ]
-	$(COMPOSE_CMD) down -v 
+	$(COMPOSE_CMD) down -v
 
-logs: 
-	${COMPOSE_CMD} logs -f 
+logs:
+	${COMPOSE_CMD} logs -f
 
-logs-svc: 
+logs-svc:
 	${COMPOSE_CMD} logs -f $(SVC)
 
 ps:
