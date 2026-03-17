@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Script per build e push di un singolo devcontainer (multi-arch) su GHCR
+# Script per build e push dei target base e dev (multi-arch) su GHCR
 # Uso:     ./release-dev.sh <stack> <versione>
 # Esempio: ./release-dev.sh nest v1.2.0
 
 set -euo pipefail
 
-if [ -z "$1" ] || [ -z "$2" ]; then
+if [ -z "${1:-}" ] || [ -z "${2:-}" ]; then
     echo "❌ Errore: Parametri mancanti."
     echo "💡 Uso corretto: ./release-dev.sh <stack> <versione>"
     echo "💡 Esempio:      ./release-dev.sh nest v1.2.0"
@@ -39,21 +39,29 @@ fi
 docker buildx use notip-builder
 docker buildx inspect --bootstrap >/dev/null
 
-IMAGE_TAG="ghcr.io/$GHCR_ORG/notip-$STACK-dev:$VERSION"
-
 echo "------------------------------------------------------"
 echo "📦 Building and Pushing: $STACK"
 echo "🏢 Org: $GHCR_ORG"
-echo "🏷️  Tag: $IMAGE_TAG"
+echo "🏗️  Stages: base, dev"
 echo "🏗️  Platforms: $PLATFORMS"
 echo "------------------------------------------------------"
 
-docker buildx build \
-    --target dev \
-    --platform "$PLATFORMS" \
-    -t "$IMAGE_TAG" \
-    -f "$STACK/Dockerfile" \
-    "$STACK" \
-    --push
+for STAGE in base dev; do
+    IMAGE_NAME="notip-$STACK-$STAGE"
+    IMAGE_TAG="ghcr.io/$GHCR_ORG/$IMAGE_NAME:$VERSION"
 
-echo "✅ $STACK ($VERSION) rilasciato con successo su GHCR!"
+    echo "------------------------------------------------------"
+    echo "🎯 Stage: $STAGE"
+    echo "🧱 Image: $IMAGE_NAME"
+    echo "🏷️  Tag: $IMAGE_TAG"
+
+    docker buildx build \
+        --target "$STAGE" \
+        --platform "$PLATFORMS" \
+        -t "$IMAGE_TAG" \
+        -f "$STACK/Dockerfile" \
+        "$STACK" \
+        --push
+done
+
+echo "✅ $STACK (base + dev) [$VERSION] rilasciato con successo su GHCR!"

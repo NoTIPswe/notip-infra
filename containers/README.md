@@ -7,8 +7,9 @@ Questa cartella contiene i Dockerfile multi-stage per gli stack:
 - infra
 - nest
 
-Ogni Dockerfile espone almeno due target utili:
+Ogni Dockerfile espone target utili multi-stage:
 
+- base: layer condiviso di base per lo stack
 - dev: immagine usata dai Dev Container in sviluppo
 - prod: immagine di runtime per deploy
 
@@ -48,7 +49,7 @@ Prerequisiti:
 - Docker Buildx disponibile
 - Login GHCR eseguito: docker login ghcr.io
 
-Esempio:
+Esempi:
 
 ```bash
 cd containers
@@ -74,16 +75,18 @@ Valori stack supportati:
 - infra
 - nest
 
-Tag prodotto:
+Tag prodotti:
 
 ```text
 ghcr.io/<GHCR_ORG>/notip-<stack>-dev:<versione>
+ghcr.io/<GHCR_ORG>/notip-<stack>-base:<versione>
 ```
 
 Esempio reale:
 
 ```text
 ghcr.io/notipswe/notip-go-dev:v1.2.0
+ghcr.io/notipswe/notip-go-base:v1.2.0
 ```
 
 Per lo stack infra:
@@ -94,7 +97,7 @@ ghcr.io/notipswe/notip-infra-dev:v0.1.0
 
 ## Note rapide
 
-- Lo script builda sempre il target dev
+- Lo script builda e pubblica sempre entrambi i target `base` e `dev` con la stessa versione
 - Le piattaforme pubblicate sono linux/amd64 e linux/arm64
 - GHCR_ORG ha default notipswe (override con variabile ambiente)
 - Se vuoi usare una versione stabile nei Dev Container, evita tag volatili e usa tag versione espliciti
