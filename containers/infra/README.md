@@ -25,16 +25,20 @@ Important:
 
 ## Run Deployment Container
 
-Required mounts:
+Runtime model:
 
-- Docker socket: lets the runner control the host Docker daemon (Docker-outside-of-Docker)
+- Local development in devcontainer: use Docker-in-Docker (DinD) configured in `.devcontainer/devcontainer.json`.
+- GitHub-hosted runners: use the runner host Docker daemon (no DinD service container).
+
+Required runtime inputs:
+
+- Docker daemon access from the current environment (DinD locally, host daemon on CI runner)
 - State directory: persists .env and generated secrets across runs
 
 Example:
 
 ```bash
 docker run --rm -it \
-  -v /var/run/docker.sock:/var/run/docker.sock \
   -v notip_infra_state:/var/lib/notip-infra \
   local/notip-infra-prod:test
 ```
@@ -51,7 +55,6 @@ Start stack:
 
 ```bash
 docker run --rm -it \
-  -v /var/run/docker.sock:/var/run/docker.sock \
   -v notip_infra_state:/var/lib/notip-infra \
   local/notip-infra-prod:test make up
 ```
@@ -60,7 +63,6 @@ Health check:
 
 ```bash
 docker run --rm -it \
-  -v /var/run/docker.sock:/var/run/docker.sock \
   -v notip_infra_state:/var/lib/notip-infra \
   local/notip-infra-prod:test make health
 ```
@@ -69,7 +71,6 @@ Logs:
 
 ```bash
 docker run --rm -it \
-  -v /var/run/docker.sock:/var/run/docker.sock \
   -v notip_infra_state:/var/lib/notip-infra \
   local/notip-infra-prod:test make logs
 ```
@@ -78,7 +79,6 @@ Stop stack:
 
 ```bash
 docker run --rm -it \
-  -v /var/run/docker.sock:/var/run/docker.sock \
   -v notip_infra_state:/var/lib/notip-infra \
   local/notip-infra-prod:test make down
 ```
@@ -87,7 +87,6 @@ Reset stack (keeps CA volume):
 
 ```bash
 docker run --rm -it \
-  -v /var/run/docker.sock:/var/run/docker.sock \
   -v notip_infra_state:/var/lib/notip-infra \
   local/notip-infra-prod:test make reset
 ```
@@ -96,13 +95,12 @@ Full reset (destroys CA volume):
 
 ```bash
 docker run --rm -it \
-  -v /var/run/docker.sock:/var/run/docker.sock \
   -v notip_infra_state:/var/lib/notip-infra \
   local/notip-infra-prod:test make reset-all
 ```
 
 ## Notes
 
-- This is not full Docker-in-Docker. It is Docker-outside-of-Docker via socket mount.
-- No privileged mode is required.
+- The deployment runner requires access to a Docker daemon. In local devcontainer this is DinD. In GitHub-hosted runners this is the runner host daemon.
+- If Docker commands fail, check `docker info` before invoking Makefile targets.
 - The deployment runner image orchestrates services; actual workloads still run as separate containers from compose.

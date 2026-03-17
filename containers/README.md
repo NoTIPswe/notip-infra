@@ -34,6 +34,8 @@ Sostituisci nest con angular, go o infra in base allo stack.
 
 Per questa repository (`notip-infra`) il devcontainer e gestito in `.devcontainer/devcontainer.json`
 e punta all immagine GHCR `ghcr.io/notipswe/notip-infra-dev:<versione>`.
+Il runtime Docker locale usa Docker-in-Docker (DinD) configurato nel devcontainer,
+senza mount diretto di `/var/run/docker.sock` dal host.
 Le operazioni locali devono passare dall interfaccia Makefile in `infra/Makefile`.
 
 ## Build e push con release-dev.sh

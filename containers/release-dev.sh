@@ -3,7 +3,7 @@
 # Uso:     ./release-dev.sh <stack> <versione>
 # Esempio: ./release-dev.sh nest v1.2.0
 
-set -e
+set -euo pipefail
 
 if [ -z "$1" ] || [ -z "$2" ]; then
     echo "❌ Errore: Parametri mancanti."
@@ -26,7 +26,18 @@ if [ ! -d "$STACK" ]; then
 fi
 
 echo "🚀 Inizializzazione di Docker Buildx..."
-docker buildx create --use --name notip-builder 2>/dev/null || true
+if ! docker info >/dev/null 2>&1; then
+    echo "❌ Errore: Docker daemon non raggiungibile."
+    echo "💡 Verifica che il daemon Docker sia attivo nel tuo ambiente (DinD/rootless o host daemon)."
+    exit 1
+fi
+
+if ! docker buildx inspect notip-builder >/dev/null 2>&1; then
+    docker buildx create --name notip-builder --driver docker-container >/dev/null
+fi
+
+docker buildx use notip-builder
+docker buildx inspect --bootstrap >/dev/null
 
 IMAGE_TAG="ghcr.io/$GHCR_ORG/notip-$STACK-dev:$VERSION"
 
