@@ -4,9 +4,6 @@ LABEL org.opencontainers.image.source="https://github.com/NoTIPswe/notip-infra" 
   org.opencontainers.image.description="Angular SPA" \
   org.opencontainers.image.licenses="MIT"
 
-WORKDIR /app
-RUN chown -R node:node /app
-
 
 # ----------------------------------------------------------
 
@@ -35,9 +32,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   openssh-client git pre-commit openjdk-25-jre-headless \
   && rm -rf /var/lib/apt/lists/*
 
+ARG TARGETARCH
+ENV JAVA_HOME=/usr/lib/jvm/java-25-openjdk-${TARGETARCH}
+
 COPY --from=sonar_scanner /opt/sonar-scanner /opt/sonar-scanner
 RUN ln -s /opt/sonar-scanner/bin/sonar-scanner /usr/local/bin/sonar-scanner
 
 RUN npm install -g @angular/cli@21.2
-
-USER node

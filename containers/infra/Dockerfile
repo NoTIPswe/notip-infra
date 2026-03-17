@@ -4,6 +4,7 @@ LABEL org.opencontainers.image.source="https://github.com/NoTIPswe/notip-infra" 
   org.opencontainers.image.description="Infrastructure devcontainer" \
   org.opencontainers.image.licenses="MIT"
 
+# TODO: check if still needed after reviewing the infrastructure and its dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
   ca-certificates curl gnupg lsb-release bash \
   make jq openssl \
@@ -27,4 +28,3 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && rm -rf /var/lib/apt/lists/*
 
 RUN useradd -m -u 1000 -s /bin/bash dev
-USER dev

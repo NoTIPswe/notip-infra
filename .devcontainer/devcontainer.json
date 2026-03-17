@@ -1,7 +1,6 @@
 {
     "name": "NoTIP Infra Dev",
     "image": "ghcr.io/notipswe/notip-infra-dev:v0.0.1",
-    "remoteUser": "dev",
     "features": {
         "ghcr.io/devcontainers/features/common-utils:2": {},
         "ghcr.io/devcontainers/features/docker-in-docker:2": {
@@ -11,7 +10,6 @@
             "dockerDashComposeVersion": "v2"
         }
     },
-    "postCreateCommand": "pre-commit install --install-hooks",
     "customizations": {
         "vscode": {
             "extensions": [
@@ -23,6 +21,9 @@
             ]
         }
     },
-    "workspaceFolder": "/workspaces/notip-infra",
-    "init": true
+    "postCreateCommand": "pre-commit install --install-hooks",
+    "init": true,
+    "remoteUser": "dev",
+    "updateRemoteUserUID": true,
+    "workspaceFolder": "/workspaces/notip-infra"
 }
