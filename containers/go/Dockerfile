@@ -1,17 +1,15 @@
-# Multi-stage Dockerfile: Go
-
-
-# Base
 FROM golang:1.26-trixie AS base
 
-LABEL org.opencontainers.image.source="https://github.com/NoTIPswe/notip-infra/" \
+LABEL org.opencontainers.image.source="https://github.com/NoTIPswe/notip-infra" \
     org.opencontainers.image.description="Go Application" \
     org.opencontainers.image.licenses="MIT"
 
 WORKDIR /app
 
 
-# Sonar scanner helper stage
+# ----------------------------------------------------------
+
+
 FROM debian:trixie-slim AS sonar_scanner
 ARG SONAR_SCANNER_VERSION=8.0.1.6346
 
@@ -25,7 +23,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -f /tmp/sonar-scanner.zip
 
 
-# Dev (devcontainer target)
+# ----------------------------------------------------------
+
+
 FROM base AS dev
 
 ARG SONAR_SCANNER_VERSION=8.0.1.6346
@@ -37,6 +37,5 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY --from=sonar_scanner /opt/sonar-scanner /opt/sonar-scanner
 RUN ln -s /opt/sonar-scanner/bin/sonar-scanner /usr/local/bin/sonar-scanner
 
-# Live reload and debugger
 RUN go install github.com/air-verse/air@v1.64.5 && \
     go install github.com/go-delve/delve/cmd/dlv@v1.26.1

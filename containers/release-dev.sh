@@ -60,8 +60,9 @@ for STAGE in base dev; do
         --platform "$PLATFORMS" \
         -t "$IMAGE_TAG" \
         -f "$STACK/Dockerfile" \
-        "$STACK" \
-        --push
+        --provenance=false \
+        --push \
+        "$STACK"
 done
 
 echo "✅ $STACK (base + dev) [$VERSION] rilasciato con successo su GHCR!"

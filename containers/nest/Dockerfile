@@ -1,15 +1,6 @@
-# Multi-stage Dockerfile: NestJS
-
-ARG SONAR_SCANNER_VERSION=8.0.1.6346
-
-
-# Base
-# For reproducible builds, pin by digest:
-# For strictly reproducible builds, replace the tag with a SHA256 digest:
-#   FROM node:24-trixie-slim@sha256:<digest> AS base
 FROM node:24.14-trixie-slim AS base
 
-LABEL org.opencontainers.image.source="https://github.com/NoTIPswe/notip-infra/" \
+LABEL org.opencontainers.image.source="https://github.com/NoTIPswe/notip-infra" \
   org.opencontainers.image.description="NestJS application" \
   org.opencontainers.image.licenses="MIT"
 
@@ -17,7 +8,9 @@ WORKDIR /app
 RUN chown -R node:node /app
 
 
-# Sonar scanner helper stage
+# ----------------------------------------------------------
+
+
 FROM debian:trixie-slim AS sonar_scanner
 ARG SONAR_SCANNER_VERSION=8.0.1.6346
 
@@ -31,10 +24,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && rm -f /tmp/sonar-scanner.zip
 
 
-# Dev (devcontainer target)
-FROM base AS dev
+# ----------------------------------------------------------
 
-ARG SONAR_SCANNER_VERSION=8.0.1.6346
+
+FROM base AS dev
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
   openssh-client git pre-commit openjdk-25-jre-headless \

@@ -1,12 +1,6 @@
-# Multi-stage Dockerfile: Angular
-
-ARG SONAR_SCANNER_VERSION=8.0.1.6346
-
-
-# Base
 FROM node:24.14-trixie-slim AS base
 
-LABEL org.opencontainers.image.source="https://github.com/NoTIPswe/notip-infra/" \
+LABEL org.opencontainers.image.source="https://github.com/NoTIPswe/notip-infra" \
   org.opencontainers.image.description="Angular SPA" \
   org.opencontainers.image.licenses="MIT"
 
@@ -14,7 +8,9 @@ WORKDIR /app
 RUN chown -R node:node /app
 
 
-# Sonar scanner helper stage
+# ----------------------------------------------------------
+
+
 FROM debian:trixie-slim AS sonar_scanner
 ARG SONAR_SCANNER_VERSION=8.0.1.6346
 
@@ -28,7 +24,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   && rm -f /tmp/sonar-scanner.zip
 
 
-# Dev
+# ----------------------------------------------------------
+
+
 FROM base AS dev
 
 ARG SONAR_SCANNER_VERSION=8.0.1.6346
