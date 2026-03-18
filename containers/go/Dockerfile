@@ -30,6 +30,8 @@ ARG SONAR_SCANNER_VERSION=8.0.1.6346
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     curl gh openssh-client git pre-commit openjdk-25-jre-headless \
+    && curl -fsSL https://deb.nodesource.com/setup_24.x | bash - \
+    && apt-get install -y --no-install-recommends nodejs \
     && rm -rf /var/lib/apt/lists/*
 
 ARG TARGETARCH
@@ -40,6 +42,7 @@ RUN ln -s /opt/sonar-scanner/bin/sonar-scanner /usr/local/bin/sonar-scanner
 
 RUN go install github.com/air-verse/air@v1.64.5 && \
     go install github.com/go-delve/delve/cmd/dlv@v1.26.1 && \
-    go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.3
+    go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.3 && \
+    go install golang.org/x/tools/gopls@v0.21.1
 
 RUN useradd -m -u 1000 -s /bin/bash dev
