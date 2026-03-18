@@ -29,7 +29,7 @@ FROM base AS dev
 ARG SONAR_SCANNER_VERSION=8.0.1.6346
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-  openssh-client git pre-commit openjdk-25-jre-headless \
+  curl gh openssh-client git pre-commit openjdk-25-jre-headless \
   && rm -rf /var/lib/apt/lists/*
 
 ARG TARGETARCH

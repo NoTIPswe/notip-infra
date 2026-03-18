@@ -27,7 +27,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 FROM base AS dev
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-  openssh-client git pre-commit openjdk-25-jre-headless \
+  curl gh openssh-client git pre-commit openjdk-25-jre-headless \
   && rm -rf /var/lib/apt/lists/*
 
 ARG TARGETARCH

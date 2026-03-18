@@ -24,7 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 FROM base AS dev
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-  openssh-client git pre-commit \
+  curl gh openssh-client git pre-commit \
   && rm -rf /var/lib/apt/lists/*
 
 RUN useradd -m -u 1000 -s /bin/bash dev
