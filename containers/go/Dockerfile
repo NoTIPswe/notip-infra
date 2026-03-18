@@ -43,4 +43,3 @@ RUN go install github.com/air-verse/air@v1.64.5 && \
     go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.3
 
 RUN useradd -m -u 1000 -s /bin/bash dev
-USER dev
