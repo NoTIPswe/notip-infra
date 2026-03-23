@@ -38,11 +38,14 @@ ARG TARGETARCH
 ENV JAVA_HOME=/usr/lib/jvm/java-25-openjdk-${TARGETARCH}
 
 COPY --from=sonar_scanner /opt/sonar-scanner /opt/sonar-scanner
-RUN ln -s /opt/sonar-scanner/bin/sonar-scanner /usr/local/bin/sonar-scanner
+
+RUN ln -s /opt/sonar-scanner/bin/sonar-scanner /usr/local/bin/sonar-scanner && \
+    useradd -m -u 1000 -s /bin/bash dev && \
+    chown -R dev:dev /go
+
+USER dev
 
 RUN go install github.com/air-verse/air@v1.64.5 && \
     go install github.com/go-delve/delve/cmd/dlv@v1.26.1 && \
     go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.3 && \
     go install golang.org/x/tools/gopls@v0.21.1
-
-RUN useradd -m -u 1000 -s /bin/bash dev
