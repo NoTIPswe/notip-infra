@@ -54,8 +54,14 @@ channels:
       operationId: publishTelemetry
       summary: Gateway publishes an encrypted sensor reading.
       tags:
-        - name: data-consumer
         - name: simulator-backend
+      message:
+        $ref: "#/components/messages/TelemetryMessage"
+    subscribe:
+      operationId: receiveTelemetry
+      summary: Data Consumer receives encrypted telemetry.
+      tags:
+        - name: data-consumer
       message:
         $ref: "#/components/messages/TelemetryMessage"
 
@@ -117,14 +123,20 @@ channels:
       operationId: publishCommandAck
       summary: Gateway acknowledges command execution.
       tags:
-        - name: management-api
         - name: simulator-backend
+      message:
+        $ref: "#/components/messages/CommandAck"
+    subscribe:
+      operationId: receiveCommandAck
+      summary: Management API receives a command acknowledgement.
+      tags:
+        - name: management-api
       message:
         $ref: "#/components/messages/CommandAck"
 
   # ── Alerts ───────────────────────────────────────────────────────────────
 
-  alert.{tenantId}.gw_offline:
+  alert.gw_offline.{tenantId}:
     description: |
       Alert emitted when a gateway goes offline (heartbeat timeout exceeded).
       Stream: ALERTS (max_age: unlimited, storage: file).
@@ -142,6 +154,12 @@ channels:
       summary: Data Consumer publishes a gateway-offline alert.
       tags:
         - name: data-consumer
+      message:
+        $ref: "#/components/messages/GatewayOfflineAlert"
+    subscribe:
+      operationId: receiveGatewayOfflineAlert
+      summary: Management API receives a gateway-offline alert.
+      tags:
         - name: management-api
       message:
         $ref: "#/components/messages/GatewayOfflineAlert"
@@ -170,6 +188,12 @@ channels:
       summary: Management API signals gateway decommissioning.
       tags:
         - name: management-api
+      message:
+        $ref: "#/components/messages/GatewayDecommissioned"
+    subscribe:
+      operationId: receiveDecommission
+      summary: Data Consumer and Simulator react to gateway decommissioning.
+      tags:
         - name: data-consumer
         - name: simulator-backend
       message:
