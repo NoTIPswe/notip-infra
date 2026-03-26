@@ -346,6 +346,7 @@ components:
             format: uuid
             description: Self-declared by firmware. Not registered in DB. May move between gateways.
           sensorType:
+            title: SensorType
             type: string
             enum: [temperature, humidity, movement, pressure, biometric]
           timestamp:
@@ -582,6 +583,7 @@ components:
             type: string
             format: uuid
           status:
+            title: GatewayStatus
             type: string
             enum: [online, offline]
           last_seen_at:
