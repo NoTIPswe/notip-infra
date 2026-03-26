@@ -1,5 +1,3 @@
-# TODO: put tags on all channels to indicate the services involved (see Norme di Progetto)
-
 asyncapi: "2.6.0"
 
 info:
@@ -41,6 +39,9 @@ channels:
       Stream: TELEMETRY (max_age: 30 days, storage: file).
       Publisher: gateway (cert CN = gateway UUID, mTLS port 4222).
       Consumer: data-consumer (durable, explicit ack).
+    tags:
+      - name: data-consumer
+      - name: simulator-backend   # virtual gateway is the publisher in simulation mode
     parameters:
       tenantId:
         description: UUID v4 of the tenant owning the gateway.
@@ -67,6 +68,9 @@ channels:
       Publisher: management-api.
       Consumer: gateway (durable push consumer, durable_name: gw-{gatewayId}).
       Gateway discards if now - issuedAt > 60s (application-level TTL).
+    tags:
+      - name: management-api      # publisher
+      - name: simulator-backend   # virtual gateway is the consumer
     parameters:
       tenantId:
         description: UUID v4 of the tenant owning the gateway.
@@ -97,6 +101,9 @@ channels:
       Stream: COMMAND_ACKS (max_age: 300s, storage: file).
       Publisher: gateway.
       Consumer: management-api (durable, durable_name: mgmt-api-ack-consumer).
+    tags:
+      - name: management-api      # consumer of acks
+      - name: simulator-backend   # virtual gateway is the publisher
     parameters:
       tenantId:
         description: UUID v4 of the tenant.
@@ -123,6 +130,9 @@ channels:
       Publisher: data-consumer.
       Consumer: management-api (durable, durable_name: mgmt-alert-consumer).
       Management API persists alerts in the DB.
+    tags:
+      - name: data-consumer       # publisher
+      - name: management-api      # consumer — persists alert to DB
     parameters:
       tenantId:
         description: UUID v4 of the tenant owning the offline gateway.
@@ -143,6 +153,10 @@ channels:
       Stream: DECOMMISSION (max_age: 24h, storage: file).
       Publisher: management-api.
       Consumers: data-consumer (removes from heartbeat map), simulator (stops goroutine).
+    tags:
+      - name: management-api      # publisher
+      - name: data-consumer       # consumer — removes gateway from heartbeat map
+      - name: simulator-backend   # consumer — stops the simulated gateway goroutine
     parameters:
       tenantId:
         description: UUID v4 of the tenant.
@@ -168,6 +182,9 @@ channels:
       Stream: AUDIT_LOG (max_age: 90 days, storage: file). Priority: desirable.
       Publishers: management-api, provisioning-service.
       Consumers: (future) audit log archiver.
+    tags:
+      - name: management-api
+      - name: provisioning-service
     parameters:
       tenantId:
         description: UUID v4 of the tenant context.
@@ -193,6 +210,9 @@ channels:
       Provisioning Service validates a gateway factory_key against the Management API.
       Called during the /provision/onboard flow.
       Requester: provisioning-service. Responder: management-api.
+    tags:
+      - name: provisioning-service  # requester
+      - name: management-api        # responder
     publish:
       operationId: validateFactoryKey
       summary: Provisioning asks Management API to validate factory credentials.
@@ -210,6 +230,9 @@ channels:
       Management API stores the AES key and marks the gateway as provisioned.
       Atomic operation: saves key, sets provisioned=true, nulls factory_key_hash.
       Requester: provisioning-service. Responder: management-api.
+    tags:
+      - name: provisioning-service  # requester
+      - name: management-api        # responder
     publish:
       operationId: completeProvisioning
       summary: Provisioning Service reports successful provisioning.
@@ -226,12 +249,16 @@ channels:
       Data Consumer fetches all alert configurations from Management API.
       Called at startup + every 5 minutes.
       Requester: data-consumer. Responder: management-api.
+    tags:
+      - name: data-consumer   # requester
+      - name: management-api  # responder
     publish:
       operationId: listAlertConfigs
       summary: Data Consumer requests all tenant alert configurations.
       message:
         name: AlertConfigsListRequest
         payload:
+          title: AlertConfigsListRequest
           type: object
           description: Empty request body.
     subscribe:
@@ -245,6 +272,9 @@ channels:
       Data Consumer notifies Management API of a gateway status transition.
       Called when heartbeat transitions gateway to online or offline.
       Requester: data-consumer. Responder: management-api.
+    tags:
+      - name: data-consumer   # requester
+      - name: management-api  # responder
     publish:
       operationId: updateGatewayStatus
       summary: Data Consumer reports a gateway status change.
@@ -256,6 +286,7 @@ channels:
       message:
         name: GatewayStatusUpdateResponse
         payload:
+          title: GatewayStatusUpdateResponse
           type: object
           required: [success]
           properties:
@@ -267,6 +298,9 @@ channels:
       Management API queries Data API for tenant storage usage.
       Used by GET /api/mgmt/costs to compute per-tenant storage cost.
       Requester: management-api. Responder: data-api.
+    tags:
+      - name: management-api  # requester
+      - name: data-api        # responder
     publish:
       operationId: requestCost
       summary: Management API requests storage size for a tenant.
@@ -294,6 +328,7 @@ components:
         Cloud components treat encryptedData/iv/authTag as opaque blobs — never decrypt.
       contentType: application/json
       payload:
+        title: TelemetryMessage
         type: object
         required: [gatewayId, sensorId, sensorType, timestamp, keyVersion, encryptedData, iv, authTag]
         properties:
@@ -329,6 +364,7 @@ components:
       title: Command for a gateway
       contentType: application/json
       payload:
+        title: GatewayCommand
         type: object
         required: [commandId, type, issuedAt]
         properties:
@@ -356,6 +392,7 @@ components:
       title: Command acknowledgement from gateway
       contentType: application/json
       payload:
+        title: CommandAck
         type: object
         required: [commandId, status, timestamp]
         properties:
@@ -381,6 +418,7 @@ components:
       title: Gateway offline alert
       contentType: application/json
       payload:
+        title: GatewayOfflineAlert
         type: object
         required: [gatewayId, lastSeen, timeoutMs, timestamp]
         properties:
@@ -404,6 +442,7 @@ components:
       title: Gateway decommissioned event
       contentType: application/json
       payload:
+        title: GatewayDecommissioned
         type: object
         required: [gatewayId, timestamp]
         properties:
@@ -419,6 +458,7 @@ components:
       title: Audit log entry
       contentType: application/json
       payload:
+        title: AuditLogEntry
         type: object
         required: [userId, action, resource, timestamp]
         properties:
@@ -442,6 +482,7 @@ components:
       name: FactoryValidateRequest
       contentType: application/json
       payload:
+        title: FactoryValidateRequest
         type: object
         required: [factory_id, factory_key]
         properties:
@@ -454,6 +495,7 @@ components:
       name: FactoryValidateResponse
       contentType: application/json
       payload:
+        title: FactoryValidateResponse
         oneOf:
           - type: object
             required: [gateway_id, tenant_id]
@@ -475,6 +517,7 @@ components:
       name: ProvisioningCompleteRequest
       contentType: application/json
       payload:
+        title: ProvisioningCompleteRequest
         type: object
         required: [gateway_id, key_material, key_version]
         properties:
@@ -491,6 +534,7 @@ components:
       name: ProvisioningCompleteResponse
       contentType: application/json
       payload:
+        title: ProvisioningCompleteResponse
         type: object
         required: [success]
         properties:
@@ -503,8 +547,10 @@ components:
       name: AlertConfigsListResponse
       contentType: application/json
       payload:
+        title: AlertConfigsListResponse
         type: array
         items:
+          title: AlertConfig
           type: object
           required: [tenant_id, timeout_ms]
           properties:
@@ -522,6 +568,7 @@ components:
       name: GatewayStatusUpdateRequest
       contentType: application/json
       payload:
+        title: GatewayStatusUpdateRequest
         type: object
         required: [gateway_id, status, last_seen_at]
         properties:
@@ -539,6 +586,7 @@ components:
       name: CostRequest
       contentType: application/json
       payload:
+        title: CostRequest
         type: object
         required: [tenant_id]
         properties:
@@ -550,6 +598,7 @@ components:
       name: CostResponse
       contentType: application/json
       payload:
+        title: CostResponse
         type: object
         required: [dataSizeAtRest]
         properties:
