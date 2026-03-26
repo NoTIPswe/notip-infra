@@ -39,9 +39,6 @@ channels:
       Stream: TELEMETRY (max_age: 30 days, storage: file).
       Publisher: gateway (cert CN = gateway UUID, mTLS port 4222).
       Consumer: data-consumer (durable, explicit ack).
-    tags:
-      - name: data-consumer
-      - name: simulator-backend   # virtual gateway is the publisher in simulation mode
     parameters:
       tenantId:
         description: UUID v4 of the tenant owning the gateway.
@@ -56,6 +53,9 @@ channels:
     publish:
       operationId: publishTelemetry
       summary: Gateway publishes an encrypted sensor reading.
+      tags:
+        - name: data-consumer
+        - name: simulator-backend
       message:
         $ref: "#/components/messages/TelemetryMessage"
 
@@ -68,9 +68,6 @@ channels:
       Publisher: management-api.
       Consumer: gateway (durable push consumer, durable_name: gw-{gatewayId}).
       Gateway discards if now - issuedAt > 60s (application-level TTL).
-    tags:
-      - name: management-api      # publisher
-      - name: simulator-backend   # virtual gateway is the consumer
     parameters:
       tenantId:
         description: UUID v4 of the tenant owning the gateway.
@@ -85,11 +82,15 @@ channels:
     subscribe:
       operationId: receiveCommand
       summary: Gateway receives a command.
+      tags:
+        - name: simulator-backend
       message:
         $ref: "#/components/messages/GatewayCommand"
     publish:
       operationId: dispatchCommand
       summary: Management API dispatches a command to a gateway.
+      tags:
+        - name: management-api
       message:
         $ref: "#/components/messages/GatewayCommand"
 
@@ -101,9 +102,6 @@ channels:
       Stream: COMMAND_ACKS (max_age: 300s, storage: file).
       Publisher: gateway.
       Consumer: management-api (durable, durable_name: mgmt-api-ack-consumer).
-    tags:
-      - name: management-api      # consumer of acks
-      - name: simulator-backend   # virtual gateway is the publisher
     parameters:
       tenantId:
         description: UUID v4 of the tenant.
@@ -118,6 +116,9 @@ channels:
     publish:
       operationId: publishCommandAck
       summary: Gateway acknowledges command execution.
+      tags:
+        - name: management-api
+        - name: simulator-backend
       message:
         $ref: "#/components/messages/CommandAck"
 
@@ -130,9 +131,6 @@ channels:
       Publisher: data-consumer.
       Consumer: management-api (durable, durable_name: mgmt-alert-consumer).
       Management API persists alerts in the DB.
-    tags:
-      - name: data-consumer       # publisher
-      - name: management-api      # consumer — persists alert to DB
     parameters:
       tenantId:
         description: UUID v4 of the tenant owning the offline gateway.
@@ -142,6 +140,9 @@ channels:
     publish:
       operationId: publishGatewayOfflineAlert
       summary: Data Consumer publishes a gateway-offline alert.
+      tags:
+        - name: data-consumer
+        - name: management-api
       message:
         $ref: "#/components/messages/GatewayOfflineAlert"
 
@@ -153,10 +154,6 @@ channels:
       Stream: DECOMMISSION (max_age: 24h, storage: file).
       Publisher: management-api.
       Consumers: data-consumer (removes from heartbeat map), simulator (stops goroutine).
-    tags:
-      - name: management-api      # publisher
-      - name: data-consumer       # consumer — removes gateway from heartbeat map
-      - name: simulator-backend   # consumer — stops the simulated gateway goroutine
     parameters:
       tenantId:
         description: UUID v4 of the tenant.
@@ -171,6 +168,10 @@ channels:
     publish:
       operationId: publishDecommission
       summary: Management API signals gateway decommissioning.
+      tags:
+        - name: management-api
+        - name: data-consumer
+        - name: simulator-backend
       message:
         $ref: "#/components/messages/GatewayDecommissioned"
 
@@ -182,9 +183,6 @@ channels:
       Stream: AUDIT_LOG (max_age: 90 days, storage: file). Priority: desirable.
       Publishers: management-api, provisioning-service.
       Consumers: (future) audit log archiver.
-    tags:
-      - name: management-api
-      - name: provisioning-service
     parameters:
       tenantId:
         description: UUID v4 of the tenant context.
@@ -194,6 +192,9 @@ channels:
     publish:
       operationId: publishAuditLog
       summary: Backend service publishes an audit log entry.
+      tags:
+        - name: management-api
+        - name: provisioning-service
       message:
         $ref: "#/components/messages/AuditLogEntry"
 
@@ -210,17 +211,18 @@ channels:
       Provisioning Service validates a gateway factory_key against the Management API.
       Called during the /provision/onboard flow.
       Requester: provisioning-service. Responder: management-api.
-    tags:
-      - name: provisioning-service  # requester
-      - name: management-api        # responder
     publish:
       operationId: validateFactoryKey
       summary: Provisioning asks Management API to validate factory credentials.
+      tags:
+        - name: provisioning-service
       message:
         $ref: "#/components/messages/FactoryValidateRequest"
     subscribe:
       operationId: respondFactoryValidate
       summary: Management API responds with gateway identity or error.
+      tags:
+        - name: management-api
       message:
         $ref: "#/components/messages/FactoryValidateResponse"
 
@@ -230,17 +232,18 @@ channels:
       Management API stores the AES key and marks the gateway as provisioned.
       Atomic operation: saves key, sets provisioned=true, nulls factory_key_hash.
       Requester: provisioning-service. Responder: management-api.
-    tags:
-      - name: provisioning-service  # requester
-      - name: management-api        # responder
     publish:
       operationId: completeProvisioning
       summary: Provisioning Service reports successful provisioning.
+      tags:
+        - name: provisioning-service
       message:
         $ref: "#/components/messages/ProvisioningCompleteRequest"
     subscribe:
       operationId: respondProvisioningComplete
       summary: Management API confirms persistence.
+      tags:
+        - name: management-api
       message:
         $ref: "#/components/messages/ProvisioningCompleteResponse"
 
@@ -249,12 +252,11 @@ channels:
       Data Consumer fetches all alert configurations from Management API.
       Called at startup + every 5 minutes.
       Requester: data-consumer. Responder: management-api.
-    tags:
-      - name: data-consumer   # requester
-      - name: management-api  # responder
     publish:
       operationId: listAlertConfigs
       summary: Data Consumer requests all tenant alert configurations.
+      tags:
+        - name: data-consumer
       message:
         name: AlertConfigsListRequest
         payload:
@@ -264,6 +266,8 @@ channels:
     subscribe:
       operationId: respondAlertConfigs
       summary: Management API returns all alert configurations.
+      tags:
+        - name: management-api
       message:
         $ref: "#/components/messages/AlertConfigsListResponse"
 
@@ -272,17 +276,18 @@ channels:
       Data Consumer notifies Management API of a gateway status transition.
       Called when heartbeat transitions gateway to online or offline.
       Requester: data-consumer. Responder: management-api.
-    tags:
-      - name: data-consumer   # requester
-      - name: management-api  # responder
     publish:
       operationId: updateGatewayStatus
       summary: Data Consumer reports a gateway status change.
+      tags:
+        - name: data-consumer
       message:
         $ref: "#/components/messages/GatewayStatusUpdateRequest"
     subscribe:
       operationId: respondGatewayStatusUpdate
       summary: Management API confirms status update.
+      tags:
+        - name: management-api
       message:
         name: GatewayStatusUpdateResponse
         payload:
@@ -298,17 +303,18 @@ channels:
       Management API queries Data API for tenant storage usage.
       Used by GET /api/mgmt/costs to compute per-tenant storage cost.
       Requester: management-api. Responder: data-api.
-    tags:
-      - name: management-api  # requester
-      - name: data-api        # responder
     publish:
       operationId: requestCost
       summary: Management API requests storage size for a tenant.
+      tags:
+        - name: management-api
       message:
         $ref: "#/components/messages/CostRequest"
     subscribe:
       operationId: respondCost
       summary: Data API returns storage size from TimescaleDB.
+      tags:
+        - name: data-api
       message:
         $ref: "#/components/messages/CostResponse"
 
