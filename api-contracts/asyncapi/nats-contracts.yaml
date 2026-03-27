@@ -85,18 +85,18 @@ channels:
         schema:
           type: string
           format: uuid
-    subscribe:
-      operationId: receiveCommand
-      summary: Gateway receives a command.
-      tags:
-        - name: simulator-backend
-      message:
-        $ref: "#/components/messages/GatewayCommand"
     publish:
       operationId: dispatchCommand
       summary: Management API dispatches a command to a gateway.
       tags:
         - name: management-api
+      message:
+        $ref: "#/components/messages/GatewayCommand"
+    subscribe:
+      operationId: receiveCommand
+      summary: Gateway receives a command.
+      tags:
+        - name: simulator-backend
       message:
         $ref: "#/components/messages/GatewayCommand"
 
@@ -221,6 +221,14 @@ channels:
         - name: provisioning-service
       message:
         $ref: "#/components/messages/AuditLogEntry"
+    subscribe:
+      operationId: consumeAuditLog
+      summary: Audit log archiver consumes entries for long-term storage.
+      description: Consumer not yet implemented — placeholder for future audit-log-archiver service.
+      tags:
+        - name: audit-log-archiver
+      message:
+        $ref: "#/components/messages/AuditLogEntry"
 
 # ────────────────────────────────────────────────────────────────────────────
 # §2 — Request-Reply Channels (internal service-to-service, no JetStream)
@@ -321,6 +329,9 @@ channels:
           properties:
             success:
               type: boolean
+            error:
+              type: string
+              description: Error detail, present only on failure.
 
   internal.cost:
     description: |
