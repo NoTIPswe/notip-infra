@@ -20,6 +20,7 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
+    openssh-client \
     xz-utils \
     python3 \
     python3-pip \
