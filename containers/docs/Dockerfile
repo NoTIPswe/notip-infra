@@ -14,6 +14,8 @@ ARG TYPST_SHA256=
 ARG TYPSTYLE_VERSION=0.14.4
 ARG TYPSTYLE_SHA256=
 
+ENV LANG=C.UTF-8 LC_ALL=C.UTF-8 PYTHONUTF8=1
+
 RUN apt-get update \
   && apt-get install -y --no-install-recommends \
     ca-certificates \
