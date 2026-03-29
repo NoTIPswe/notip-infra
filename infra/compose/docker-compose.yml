@@ -42,7 +42,7 @@ services:
   # JetStream stream bootstrap (runs once, exits 0)
   nats-streams-init:
     image: natsio/nats-box:latest
-    command: ["/bin/sh", "/scripts/nats-streams-init.sh"]  
+    command: ["/bin/sh", "/scripts/nats-streams-init.sh"]
     environment:
       NATS_URL:  "tls://nats:4222"
       NATS_CA:   "/certs/ca.crt"

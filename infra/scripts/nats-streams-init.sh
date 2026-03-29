@@ -18,7 +18,7 @@ nats_cmd() {
 }
 
 echo "==> Waiting for NATS at $NATS_URL"
-# Use nats stream ls instead of server check jetstream as server commands 
+# Use nats stream ls instead of server check jetstream as server commands
 # require a system account, while stream commands work with default permissions.
 until nats_cmd stream ls > /dev/null 2>&1; do
   echo "  NATS not ready, retrying in 2s..."
