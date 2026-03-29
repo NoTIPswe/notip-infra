@@ -2,17 +2,26 @@
 # Imports the notip realm and configures service account secrets + roles.
 # Idempotent: skips realm import if it already exists.
 set -euo pipefail
+SECRETS_DIR="/run/secrets"
+if [ ! -d "$SECRETS_DIR" ]; then
+  SECRETS_DIR="./secrets"
+fi
 
 KEYCLOAK_URL="${KEYCLOAK_URL:-http://keycloak:8080}"
+echo "DEBUG: KEYCLOAK_URL is $KEYCLOAK_URL"
 KEYCLOAK_ADMIN_USER="${KEYCLOAK_ADMIN_USER:-admin}"
-KEYCLOAK_ADMIN_PASSWORD="$(cat /run/secrets/keycloak_admin_password)"
-MGMT_SECRET="$(cat /run/secrets/keycloak_mgmt_client_secret)"
-SIM_SECRET="$(cat /run/secrets/keycloak_simulator_client_secret)"
+KEYCLOAK_ADMIN_PASSWORD="$(cat $SECRETS_DIR/keycloak_admin_password)"
+MGMT_SECRET="$(cat $SECRETS_DIR/keycloak_mgmt_client_secret)"
+SIM_SECRET="$(cat $SECRETS_DIR/keycloak_simulator_client_secret)"
 REALM_FILE="/keycloak/realm-export.json"
 
 # Wait for Keycloak
 echo "==> Waiting for Keycloak"
-until curl -sf "$KEYCLOAK_URL/auth/health/ready" > /dev/null 2>&1; do
+# Keycloak 26.5 management interface is on port 9000.
+# We replace :8080 with :9000 for the health check.
+KEYCLOAK_MGMT_URL="${KEYCLOAK_URL/8080/9000}"
+
+until curl -sf "$KEYCLOAK_MGMT_URL/auth/health/ready" > /dev/null 2>&1; do
   echo "  not ready, retrying in 3s..."
   sleep 3
 done
@@ -79,32 +88,40 @@ set_client_secret "notip-simulator-backend" "$SIM_SECRET"
 # Assign system_admin role to notip-mgmt-backend service account
 echo "==> Assigning manage-clients role to notip-mgmt-backend service account"
 MGMT_UUID=$(get_client_uuid "notip-mgmt-backend")
-MGMT_SA_ID=$(curl -sf \
+
+# Keycloak 26 requires the full user object (including username) for PUT.
+MGMT_SA_JSON=$(curl -sSf \
   -H "Authorization: Bearer $TOKEN" \
-  "$KEYCLOAK_URL/auth/admin/realms/notip/clients/$MGMT_UUID/service-account-user" \
-  | jq -r '.id')
+  "$KEYCLOAK_URL/auth/admin/realms/notip/clients/$MGMT_UUID/service-account-user")
+MGMT_SA_ID=$(echo "$MGMT_SA_JSON" | jq -r '.id')
+MGMT_SA_NAME=$(echo "$MGMT_SA_JSON" | jq -r '.username')
+
 
 # Set role user attribute so the JWT carries role=system_admin
-curl -sf -X PUT \
+echo "==> Setting role=system_admin attribute on service account"
+curl -sSf -X PUT \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   "$KEYCLOAK_URL/auth/admin/realms/notip/users/$MGMT_SA_ID" \
-  -d '{"attributes":{"role":["system_admin"]}}'
+  -d "{\"username\":\"$MGMT_SA_NAME\",\"attributes\":{\"role\":[\"system_admin\"]}}" || { echo "Failed to set attribute for MGMT_SA_ID"; exit 1; }
 echo "  done."
 
 # Assign system_admin to notip-simulator-backend service account
 echo "==> Setting role=system_admin on notip-simulator-backend service account"
 SIM_UUID=$(get_client_uuid "notip-simulator-backend")
-SIM_SA_ID=$(curl -sf \
-  -H "Authorization: Bearer $TOKEN" \
-  "$KEYCLOAK_URL/auth/admin/realms/notip/clients/$SIM_UUID/service-account-user" \
-  | jq -r '.id')
 
-curl -sf -X PUT \
+SIM_SA_JSON=$(curl -sSf \
+  -H "Authorization: Bearer $TOKEN" \
+  "$KEYCLOAK_URL/auth/admin/realms/notip/clients/$SIM_UUID/service-account-user")
+SIM_SA_ID=$(echo "$SIM_SA_JSON" | jq -r '.id')
+SIM_SA_NAME=$(echo "$SIM_SA_JSON" | jq -r '.username')
+
+
+curl -sSf -X PUT \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   "$KEYCLOAK_URL/auth/admin/realms/notip/users/$SIM_SA_ID" \
-  -d '{"attributes":{"role":["system_admin"]}}'
+  -d "{\"username\":\"$SIM_SA_NAME\",\"attributes\":{\"role\":[\"system_admin\"]}}" || { echo "Failed to set attribute for SIM_SA_ID"; exit 1; }
 echo "  done."
 
 # Grant manage-clients realm role to notip-mgmt-backend

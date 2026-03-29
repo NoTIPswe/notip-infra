@@ -42,7 +42,7 @@ services:
   # JetStream stream bootstrap (runs once, exits 0)
   nats-streams-init:
     image: natsio/nats-box:latest
-    command: ["/bin/sh", "/scripts/nats-streams-init.sh"]
+    command: ["/bin/sh", "/scripts/nats-streams-init.sh"]  
     environment:
       NATS_URL:  "tls://nats:4222"
       NATS_CA:   "/certs/ca.crt"
@@ -112,7 +112,7 @@ services:
       test: ["CMD-SHELL", "pg_isready -U ${MEASURES_DB_USER:-notip_measures} -d ${MEASURES_DB_NAME:-notip_measures}"]
       interval: 5s
       timeout: 3s
-      retries: 10
+      retries: 20
     restart: unless-stopped
     networks:
       - internal
@@ -128,18 +128,26 @@ services:
       - --http-relative-path=/auth
       - --health-enabled=true
       - --metrics-enabled=true
+      - --proxy-headers=xforwarded
+      - --hostname-strict=false
     environment:
-      KC_DB_PASSWORD:              ${KEYCLOAK_DB_PASSWORD}
-      KEYCLOAK_ADMIN:              ${KEYCLOAK_ADMIN_USER:-admin}
-      KEYCLOAK_ADMIN_PASSWORD:     ${KEYCLOAK_ADMIN_PASSWORD}
-      KC_HOSTNAME:                 ${KEYCLOAK_HOSTNAME:-localhost}
+      KC_DB_PASSWORD:              ${KEYCLOAK_DB_PASSWORD:-keycloak}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER:-admin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      KC_HTTP_RELATIVE_PATH:       /auth
+      KC_HOSTNAME_URL:             http://localhost/auth
+      KC_HOSTNAME_ADMIN_URL:       http://localhost/auth
       KC_HOSTNAME_STRICT:          "false"
       KC_HOSTNAME_STRICT_HTTPS:    "false"
+      KC_HTTP_ENABLED:             "true"
+    secrets:
+      - keycloak_admin_password
+      - keycloak_db_password
     depends_on:
       keycloak-db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8080/auth/health/ready"]
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9000 && echo -e 'GET /auth/health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200 OK'"]
       interval: 10s
       timeout: 5s
       retries: 20
@@ -173,19 +181,29 @@ services:
 
   # Application services
   management-api:
-    image: ${MGMT_API_IMAGE:-ghcr.io/notip/management-api:latest}
+    image: ${MGMT_API_IMAGE:-ghcr.io/notipswe/notip-management-api:latest}
+    command: ["dist/src/main"]
     environment:
-      PORT:                            3001
+      PORT:                            3000
+      MGMT_API_PORT:                   3000
+      # Compiled image expects these:
       DB_HOST:                         ${MGMT_DB_HOST:-mgmt-db}
       DB_PORT:                         ${MGMT_DB_PORT:-5432}
       DB_NAME:                         ${MGMT_DB_NAME:-notip_mgmt}
       DB_USER:                         ${MGMT_DB_USER:-notip_mgmt}
-      DB_PASSWORD_FILE:                /run/secrets/mgmt_db_password
-      DB_ENCRYPTION_KEY_FILE:          /run/secrets/db_encryption_key
-      KEYCLOAK_URL:                    http://keycloak:8080/auth
+      DB_PASSWORD:                     ${MGMT_DB_PASSWORD}
+      # Source code expects these:
+      MGMT_DB_HOST:                    ${MGMT_DB_HOST:-mgmt-db}
+      MGMT_DB_PORT:                    ${MGMT_DB_PORT:-5432}
+      MGMT_DB_NAME:                    ${MGMT_DB_NAME:-notip_mgmt}
+      MGMT_DB_USER:                    ${MGMT_DB_USER:-notip_mgmt}
+      MGMT_DB_PASSWORD:                ${MGMT_DB_PASSWORD}
+      DB_ENCRYPTION_KEY:               ${DB_ENCRYPTION_KEY}
+      KEYCLOAK_URL:                    http://nginx/auth
       KEYCLOAK_REALM:                  ${KEYCLOAK_REALM:-notip}
       KEYCLOAK_MGMT_CLIENT_ID:         ${KEYCLOAK_MGMT_CLIENT_ID:-notip-mgmt-backend}
-      KEYCLOAK_MGMT_CLIENT_SECRET_FILE: /run/secrets/keycloak_mgmt_client_secret
+      KEYCLOAK_MGMT_CLIENT_SECRET:     ${KEYCLOAK_MGMT_CLIENT_SECRET}
+      NODE_EXTRA_CA_CERTS:             /certs/ca.crt
       NATS_URL:                        tls://nats:4222
       NATS_TLS_CA:                     /certs/ca.crt
       NATS_TLS_CERT:                   /certs/management-api.crt
@@ -196,6 +214,7 @@ services:
       - keycloak_mgmt_client_secret
     volumes:
       - ca_certs:/certs:ro
+      - ../../notip-management-api/dist:/app/dist:ro
     depends_on:
       nats-streams-init:
         condition: service_completed_successfully
@@ -204,7 +223,7 @@ services:
       mgmt-db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3001/health || exit 1"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/', r => process.exit((r.statusCode === 200 || r.statusCode === 404) ? 0 : 1)).on('error', () => process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -214,16 +233,18 @@ services:
       - internal
 
   data-api:
-    image: ${DATA_API_IMAGE:-ghcr.io/notip/data-api:latest}
+    image: ${DATA_API_IMAGE:-ghcr.io/notipswe/notip-data-api:latest}
+    command: ["dist/src/main"]
     environment:
-      PORT:             3002
+      PORT:             3000
       DB_HOST:          ${MEASURES_DB_HOST:-measures-db}
       DB_PORT:          ${MEASURES_DB_PORT:-5432}
       DB_NAME:          ${MEASURES_DB_NAME:-notip_measures}
       DB_USER:          ${MEASURES_DB_USER:-notip_measures}
-      DB_PASSWORD_FILE: /run/secrets/measures_db_password
-      KEYCLOAK_URL:     http://keycloak:8080/auth
+      DB_PASSWORD:      ${MEASURES_DB_PASSWORD}
+      KEYCLOAK_URL:     http://nginx/auth
       KEYCLOAK_REALM:   ${KEYCLOAK_REALM:-notip}
+      NODE_EXTRA_CA_CERTS: /certs/ca.crt
       NATS_URL:         tls://nats:4222
       NATS_TLS_CA:      /certs/ca.crt
       NATS_TLS_CERT:    /certs/data-api.crt
@@ -238,7 +259,7 @@ services:
       measures-db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3002/health || exit 1"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/', r => process.exit((r.statusCode === 200 || r.statusCode === 404) ? 0 : 1)).on('error', () => process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -248,17 +269,20 @@ services:
       - internal
 
   data-consumer:
-    image: ${DATA_CONSUMER_IMAGE:-ghcr.io/notip/data-consumer:latest}
+    image: ${DATA_CONSUMER_IMAGE:-ghcr.io/notipswe/notip-data-consumer:latest}
     environment:
       DB_HOST:                  ${MEASURES_DB_HOST:-measures-db}
       DB_PORT:                  ${MEASURES_DB_PORT:-5432}
       DB_NAME:                  ${MEASURES_DB_NAME:-notip_measures}
       DB_USER:                  ${MEASURES_DB_USER:-notip_measures}
-      DB_PASSWORD_FILE:         /run/secrets/measures_db_password
+      DB_PASSWORD:              ${MEASURES_DB_PASSWORD}
+      NODE_EXTRA_CA_CERTS:      /certs/ca.crt
       NATS_URL:                 tls://nats:4222
       NATS_TLS_CA:              /certs/ca.crt
       NATS_TLS_CERT:            /certs/data-consumer.crt
       NATS_TLS_KEY:             /certs/data-consumer.key
+      DB_PASSWORD_FILE:         /run/secrets/measures_db_password
+      DB_SSL_MODE:              "require"
       HEARTBEAT_GRACE_PERIOD_MS: "120000"
       GATEWAY_BUFFER_SIZE:      "1000"
     secrets:
@@ -277,23 +301,27 @@ services:
       - internal
 
   provisioning-service:
-    image: ${PROVISIONING_IMAGE:-ghcr.io/notip/provisioning-service:latest}
+    image: ${PROVISIONING_IMAGE:-ghcr.io/notipswe/notip-provisioning-service:latest}
+    command: ["dist/src/main"]
     environment:
-      PORT:         3004
+      PORT:         3000
+      NODE_EXTRA_CA_CERTS: /certs/ca.crt
       NATS_URL:     tls://nats:4222
+      NATS_CREDENTIALS: "none"
       NATS_TLS_CA:  /certs/ca.crt
       NATS_TLS_CERT: /certs/provisioning.crt
       NATS_TLS_KEY:  /certs/provisioning.key
       CERTS_DIR:    /certs
     volumes:
       - ca_certs:/certs   # read-write: signs gateway CSRs with ca.key
+      - ../../notip-provisioning-service/dist:/app/dist:ro
     depends_on:
       nats-streams-init:
         condition: service_completed_successfully
       management-api:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3004/health || exit 1"]
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/', r => process.exit((r.statusCode === 200 || r.statusCode === 404) ? 0 : 1)).on('error', () => process.exit(1))"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -303,7 +331,7 @@ services:
       - internal
 
   frontend:
-    image: ${FRONTEND_IMAGE:-ghcr.io/notip/frontend:latest}
+    image: ${FRONTEND_IMAGE:-ghcr.io/notipswe/notip-frontend:latest}
     restart: unless-stopped
     networks:
       - internal
@@ -323,25 +351,24 @@ services:
         condition: service_healthy
       provisioning-service:
         condition: service_healthy
+      frontend:
+        condition: service_started
     restart: unless-stopped
     networks:
       - internal
 
   # Simulator (opt-in: docker compose --profile simulator up)
   simulator:
-    image: ${SIMULATOR_IMAGE:-ghcr.io/notip/simulator:latest}
+    image: ${SIMULATOR_IMAGE:-ghcr.io/notipswe/notip-simulator-backend:latest}
     environment:
       SIMULATOR_PORT:                      ${SIMULATOR_PORT:-8090}
-      KEYCLOAK_URL:                        http://keycloak:8080/auth
+      KEYCLOAK_URL:                        http://nginx/auth
       KEYCLOAK_REALM:                      ${KEYCLOAK_REALM:-notip}
       KEYCLOAK_SIMULATOR_CLIENT_ID:        ${KEYCLOAK_SIMULATOR_CLIENT_ID:-notip-simulator-backend}
       KEYCLOAK_SIMULATOR_CLIENT_SECRET_FILE: /run/secrets/keycloak_simulator_client_secret
       MGMT_API_URL:                        http://nginx/api/mgmt
       PROVISIONING_URL:                    http://nginx/api/provision
       NATS_URL:                            tls://nats:4222
-      NATS_TLS_CA:                         /certs/ca.crt
-      NATS_TLS_CERT:                       /certs/simulator.crt
-      NATS_TLS_KEY:                        /certs/simulator.key
     secrets:
       - keycloak_simulator_client_secret
     volumes:
