@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontend Test - NoTip</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 60px 40px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            text-align: center;
+            max-width: 600px;
+            width: 100%;
+        }
+
+        h1 {
+            color: #333;
+            font-size: 3em;
+            margin-bottom: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 1.2em;
+            margin-bottom: 30px;
+        }
+
+        .status {
+            display: inline-block;
+            background: #10b981;
+            color: white;
+            padding: 12px 30px;
+            border-radius: 50px;
+            font-weight: 600;
+            margin-bottom: 30px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: 0.7;
+            }
+        }
+
+        .info {
+            background: #f3f4f6;
+            border-radius: 12px;
+            padding: 25px;
+            margin: 30px 0;
+            text-align: left;
+        }
+
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .info-item:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            color: #6b7280;
+            font-weight: 500;
+        }
+
+        .info-value {
+            color: #111827;
+            font-weight: 600;
+            font-family: 'Courier New', monospace;
+        }
+
+        .button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 50px;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            margin: 10px;
+        }
+
+        .button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .timestamp {
+            color: #9ca3af;
+            font-size: 0.9em;
+            margin-top: 30px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 NoTip Frontend</h1>
+        <p class="subtitle">Placeholder di test</p>
+        
+        <div class="status">
+            ✓ Sistema Operativo
+        </div>
+
+        <div class="info">
+            <div class="info-item">
+                <span class="info-label">Stato</span>
+                <span class="info-value">Test Mode</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Versione</span>
+                <span class="info-value">0.1.0-placeholder</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Ambiente</span>
+                <span class="info-value">Development</span>
+            </div>
+            <div class="info-item">
+                <span class="info-label">Network</span>
+                <span class="info-value">internal</span>
+            </div>
+        </div>
+
+        <button class="button" onclick="testConnection()">
+            Test Connessione
+        </button>
+        <button class="button" onclick="showInfo()">
+            Info Sistema
+        </button>
+
+        <p class="timestamp" id="timestamp"></p>
+    </div>
+
+    <script>
+        // Aggiorna timestamp
+        function updateTimestamp() {
+            const now = new Date();
+            document.getElementById('timestamp').textContent = 
+                'Ultimo aggiornamento: ' + now.toLocaleString('it-IT');
+        }
+        
+        updateTimestamp();
+        setInterval(updateTimestamp, 1000);
+
+        function testConnection() {
+            alert('✓ Connessione OK!\nIl frontend placeholder è operativo.');
+        }
+
+        function showInfo() {
+            const info = `
+Informazioni Sistema:
+━━━━━━━━━━━━━━━━━━
+User Agent: ${navigator.userAgent}
+Lingua: ${navigator.language}
+Platform: ${navigator.platform}
+Cookie abilitati: ${navigator.cookieEnabled}
+            `;
+            alert(info);
+        }
+
+        // Log di benvenuto
+        console.log('%c🚀 NoTip Frontend Placeholder', 'color: #667eea; font-size: 20px; font-weight: bold');
+        console.log('%cAmbiente di test attivo', 'color: #10b981; font-size: 14px');
+    </script>
+</body>
+</html>
