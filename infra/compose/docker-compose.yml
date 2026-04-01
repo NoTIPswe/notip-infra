@@ -332,7 +332,7 @@ services:
       - internal
 
   frontend:
-    image: nginx:alpine
+    image: ${FRONTEND_IMAGE:-ghcr.io/notipswe/notip-frontend:latest}
     volumes:
       - ../../notip-frontend/notip-frontend-develop/dist/notip-frontend/browser:/usr/share/nginx/html:ro
     restart: unless-stopped
