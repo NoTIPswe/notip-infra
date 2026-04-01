@@ -214,7 +214,7 @@ services:
       - keycloak_mgmt_client_secret
     volumes:
       - ca_certs:/certs:ro
-      - ../../notip-management-api/dist:/app/dist:ro 
+      - ../../notip-management-api/dist:/app/dist:ro
       - ../../notip-management-api/node_modules:/app/node_modules:ro
     depends_on:
       nats-streams-init:
@@ -315,7 +315,7 @@ services:
       CERTS_DIR:    /certs
     volumes:
       - ca_certs:/certs   # read-write: signs gateway CSRs with ca.key
-      - ../../notip-provisioning-service/dist:/app/dist:ro 
+      - ../../notip-provisioning-service/dist:/app/dist:ro
     depends_on:
       nats-streams-init:
         condition: service_completed_successfully
@@ -332,9 +332,9 @@ services:
       - internal
 
   frontend:
-    image: nginx:alpine # image: ${FRONTEND_IMAGE:-ghcr.io/notipswe/notip-frontend:latest}
-    command: >
-      /bin/sh -c "echo '<html><body style=\"background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; margin: 0;\"><h1>🚀 NoTip Frontend</h1><p>Placeholder di test attivo</p></body></html>' > /usr/share/nginx/html/index.html && exec nginx -g \"daemon off;\""
+    image: nginx:alpine
+    volumes:
+      - ../../notip-frontend/notip-frontend-develop/dist/notip-frontend/browser:/usr/share/nginx/html:ro
     restart: unless-stopped
     networks:
       - internal
