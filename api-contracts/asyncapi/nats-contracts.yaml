@@ -30,7 +30,6 @@ defaultContentType: application/json
 # ────────────────────────────────────────────────────────────────────────────
 
 channels:
-
   # ── Telemetry ────────────────────────────────────────────────────────────
 
   telemetry.data.{tenantId}.{gatewayId}:
@@ -230,13 +229,13 @@ channels:
       message:
         $ref: "#/components/messages/AuditLogEntry"
 
-# ────────────────────────────────────────────────────────────────────────────
-# §2 — Request-Reply Channels (internal service-to-service, no JetStream)
-#
-# These replace ALL inter-service HTTP. Not accessible from IoT gateways.
-# Timeout: 5s. Retry: 3x with backoff 1s/2s/4s. On failure: 503 to caller.
-# Startup operations (alert-configs.list): 10 retries, backoff up to 30s.
-# ────────────────────────────────────────────────────────────────────────────
+  # ────────────────────────────────────────────────────────────────────────────
+  # §2 — Request-Reply Channels (internal service-to-service, no JetStream)
+  #
+  # These replace ALL inter-service HTTP. Not accessible from IoT gateways.
+  # Timeout: 5s. Retry: 3x with backoff 1s/2s/4s. On failure: 503 to caller.
+  # Startup operations (alert-configs.list): 10 retries, backoff up to 30s.
+  # ────────────────────────────────────────────────────────────────────────────
 
   internal.mgmt.factory.validate:
     description: |
@@ -379,9 +378,7 @@ channels:
 # ────────────────────────────────────────────────────────────────────────────
 
 components:
-
   messages:
-
     TelemetryMessage:
       name: TelemetryMessage
       title: Encrypted telemetry envelope
@@ -392,7 +389,17 @@ components:
       payload:
         title: TelemetryMessage
         type: object
-        required: [gatewayId, sensorId, sensorType, timestamp, keyVersion, encryptedData, iv, authTag]
+        required:
+          [
+            gatewayId,
+            sensorId,
+            sensorType,
+            timestamp,
+            keyVersion,
+            encryptedData,
+            iv,
+            authTag,
+          ]
         properties:
           gatewayId:
             type: string
@@ -582,7 +589,7 @@ components:
       payload:
         title: ProvisioningCompleteRequest
         type: object
-        required: [gateway_id, key_material, key_version]
+        required: [gateway_id, key_material, key_version, send_frequency_ms]
         properties:
           gateway_id:
             type: string
@@ -592,6 +599,9 @@ components:
             description: Base64-encoded 256-bit AES key (plaintext — transmitted over internal NATS mTLS only).
           key_version:
             type: integer
+          send_frequency_ms:
+            type: integer
+            description: Desired telemetry send frequency for the gateway (in milliseconds).
 
     ProvisioningCompleteResponse:
       name: ProvisioningCompleteResponse
