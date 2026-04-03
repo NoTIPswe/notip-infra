@@ -10,10 +10,40 @@ fi
 KEYCLOAK_URL="${KEYCLOAK_URL:-http://keycloak:8080}"
 echo "DEBUG: KEYCLOAK_URL is $KEYCLOAK_URL"
 KEYCLOAK_ADMIN_USER="${KEYCLOAK_ADMIN_USER:-admin}"
-KEYCLOAK_ADMIN_PASSWORD="$(cat $SECRETS_DIR/keycloak_admin_password)"
+KEYCLOAK_ADMIN_PASSWORD="${KEYCLOAK_ADMIN_PASSWORD:-$(cat "$SECRETS_DIR/keycloak_admin_password")}"
 MGMT_SECRET="$(cat $SECRETS_DIR/keycloak_mgmt_client_secret)"
 SIM_SECRET="$(cat $SECRETS_DIR/keycloak_simulator_client_secret)"
 REALM_FILE="/keycloak/realm-export.json"
+RENDERED_REALM_FILE="$(mktemp)"
+
+cleanup() {
+  rm -f "$RENDERED_REALM_FILE"
+}
+trap cleanup EXIT
+
+render_realm_file() {
+  jq \
+    --arg admin_user "$KEYCLOAK_ADMIN_USER" \
+    --arg admin_password "$KEYCLOAK_ADMIN_PASSWORD" \
+    '
+      .users = ((.users // []) | map(
+        if .username == "__KEYCLOAK_ADMIN_USER__" then
+          .username = $admin_user
+          | .credentials = ((.credentials // []) | map(
+              if .type == "password" and .value == "__KEYCLOAK_ADMIN_PASSWORD__" then
+                .value = $admin_password
+                | .temporary = false
+              else
+                .
+              end
+            ))
+        else
+          .
+        end
+      ))
+    ' \
+    "$REALM_FILE" > "$RENDERED_REALM_FILE"
+}
 
 # Wait for Keycloak
 echo "==> Waiting for Keycloak"
@@ -50,11 +80,12 @@ if [ "$HTTP_STATUS" = "200" ]; then
   echo "  exists, skipping import."
 else
   echo "  importing..."
+  render_realm_file
   curl -sf -X POST \
     -H "Authorization: Bearer $TOKEN" \
     -H "Content-Type: application/json" \
     "$KEYCLOAK_URL/auth/admin/realms" \
-    -d @"$REALM_FILE"
+    -d @"$RENDERED_REALM_FILE"
   echo "  done."
   TOKEN=$(get_token)
 fi
@@ -65,6 +96,133 @@ get_client_uuid() {
     -H "Authorization: Bearer $TOKEN" \
     "$KEYCLOAK_URL/auth/admin/realms/notip/clients?clientId=$1" \
     | jq -r '.[0].id'
+}
+
+get_client_scope_uuid() {
+  local scope_name="$1"
+  curl -sf \
+    -H "Authorization: Bearer $TOKEN" \
+    "$KEYCLOAK_URL/auth/admin/realms/notip/client-scopes" \
+    | jq -r --arg name "$scope_name" '.[] | select(.name == $name) | .id' \
+    | head -n1
+}
+
+ensure_scope_mapper() {
+  local scope_id="$1"
+  local mapper_name="$2"
+  local mapper_type="$3"
+  local mapper_config="$4"
+
+  local exists
+  exists=$(curl -sf \
+    -H "Authorization: Bearer $TOKEN" \
+    "$KEYCLOAK_URL/auth/admin/realms/notip/client-scopes/$scope_id/protocol-mappers/models" \
+    | jq -r --arg name "$mapper_name" 'map(select(.name == $name)) | length')
+
+  if [ "$exists" = "0" ]; then
+    curl -sf -X POST \
+      -H "Authorization: Bearer $TOKEN" \
+      -H "Content-Type: application/json" \
+      "$KEYCLOAK_URL/auth/admin/realms/notip/client-scopes/$scope_id/protocol-mappers/models" \
+      -d "{\"name\":\"$mapper_name\",\"protocol\":\"openid-connect\",\"protocolMapper\":\"$mapper_type\",\"consentRequired\":false,\"config\":$mapper_config}" \
+      >/dev/null
+  fi
+}
+
+ensure_mgmt_audience_mapper() {
+  echo "==> Ensuring audience mapper for notip-mgmt-backend"
+
+  local claims_scope_id
+  claims_scope_id=$(get_client_scope_uuid "notip-claims")
+
+  if [ -z "$claims_scope_id" ] || [ "$claims_scope_id" = "null" ]; then
+    echo "  WARNING: notip-claims scope not found — skipping audience mapper."
+    return
+  fi
+
+  ensure_scope_mapper \
+    "$claims_scope_id" \
+    "mgmt-audience-mapper" \
+    "oidc-audience-mapper" \
+    '{"included.client.audience":"notip-mgmt-backend","id.token.claim":"false","access.token.claim":"true","introspection.token.claim":"true"}'
+
+  echo "  done."
+}
+
+ensure_sub_mapper() {
+  echo "==> Ensuring sub mapper in notip-claims"
+
+  local claims_scope_id
+  claims_scope_id=$(get_client_scope_uuid "notip-claims")
+
+  if [ -z "$claims_scope_id" ] || [ "$claims_scope_id" = "null" ]; then
+    echo "  WARNING: notip-claims scope not found — skipping sub mapper."
+    return
+  fi
+
+  ensure_scope_mapper \
+    "$claims_scope_id" \
+    "sub-mapper" \
+    "oidc-usermodel-property-mapper" \
+    '{"user.attribute":"id","claim.name":"sub","jsonType.label":"String","id.token.claim":"false","access.token.claim":"true","userinfo.token.claim":"false","introspection.token.claim":"true"}'
+
+  echo "  done."
+}
+
+ensure_user_client_role() {
+  local user_id="$1"
+  local client_uuid="$2"
+  local role_name="$3"
+
+  local assigned
+  assigned=$(curl -sf \
+    -H "Authorization: Bearer $TOKEN" \
+    "$KEYCLOAK_URL/auth/admin/realms/notip/users/$user_id/role-mappings/clients/$client_uuid" \
+    | jq -r --arg rn "$role_name" 'map(select(.name == $rn)) | length')
+
+  if [ "$assigned" = "0" ]; then
+    local role_json
+    role_json=$(curl -sf \
+      -H "Authorization: Bearer $TOKEN" \
+      "$KEYCLOAK_URL/auth/admin/realms/notip/clients/$client_uuid/roles/$role_name")
+
+    curl -sf -X POST \
+      -H "Authorization: Bearer $TOKEN" \
+      -H "Content-Type: application/json" \
+      "$KEYCLOAK_URL/auth/admin/realms/notip/users/$user_id/role-mappings/clients/$client_uuid" \
+      -d "[$role_json]" \
+      >/dev/null
+  fi
+}
+
+ensure_mgmt_realm_management_roles() {
+  local mgmt_sa_user_id="$1"
+
+  echo "==> Ensuring realm-management roles for notip-mgmt-backend service account"
+
+  local realm_mgmt_uuid
+  realm_mgmt_uuid=$(get_client_uuid "realm-management")
+
+  if [ -z "$realm_mgmt_uuid" ] || [ "$realm_mgmt_uuid" = "null" ]; then
+    echo "  WARNING: realm-management client not found — skipping role assignment."
+    return
+  fi
+
+  local required_roles=(
+    manage-users
+    view-users
+    query-users
+    query-groups
+    view-clients
+    manage-clients
+    view-realm
+  )
+
+  for role_name in "${required_roles[@]}"; do
+    ensure_user_client_role "$mgmt_sa_user_id" "$realm_mgmt_uuid" "$role_name"
+  done
+
+  echo "  done."
 }
 
 # Helper: set client secret
@@ -84,6 +242,9 @@ set_client_secret() {
 
 set_client_secret "notip-mgmt-backend"      "$MGMT_SECRET"
 set_client_secret "notip-simulator-backend" "$SIM_SECRET"
+
+ensure_mgmt_audience_mapper
+ensure_sub_mapper
 
 # Assign system_admin role to notip-mgmt-backend service account
 echo "==> Assigning manage-clients role to notip-mgmt-backend service account"
@@ -106,6 +267,8 @@ curl -sSf -X PUT \
   -d "{\"username\":\"$MGMT_SA_NAME\",\"attributes\":{\"role\":[\"system_admin\"]}}" || { echo "Failed to set attribute for MGMT_SA_ID"; exit 1; }
 echo "  done."
 
+ensure_mgmt_realm_management_roles "$MGMT_SA_ID"
+
 # Assign system_admin to notip-simulator-backend service account
 echo "==> Setting role=system_admin on notip-simulator-backend service account"
 SIM_UUID=$(get_client_uuid "notip-simulator-backend")
@@ -123,24 +286,6 @@ curl -sSf -X PUT \
   "$KEYCLOAK_URL/auth/admin/realms/notip/users/$SIM_SA_ID" \
   -d "{\"username\":\"$SIM_SA_NAME\",\"attributes\":{\"role\":[\"system_admin\"]}}" || { echo "Failed to set attribute for SIM_SA_ID"; exit 1; }
 echo "  done."
-
-# Grant manage-clients realm role to notip-mgmt-backend
-echo "==> Granting manage-clients realm role to notip-mgmt-backend"
-MANAGE_CLIENTS_ROLE=$(curl -sf \
-  -H "Authorization: Bearer $TOKEN" \
-  "$KEYCLOAK_URL/auth/admin/realms/notip/roles/manage-clients" 2>/dev/null || echo "null")
-
-if [ "$MANAGE_CLIENTS_ROLE" = "null" ]; then
-  echo "  WARNING: manage-clients role not found at realm level — skipping."
-  echo "  Grant it manually: Keycloak Admin > notip-mgmt-backend > Service Account Roles > Client Roles > realm-management > manage-clients"
-else
-  curl -sf -X POST \
-    -H "Authorization: Bearer $TOKEN" \
-    -H "Content-Type: application/json" \
-    "$KEYCLOAK_URL/auth/admin/realms/notip/users/$MGMT_SA_ID/role-mappings/realm" \
-    -d "[$MANAGE_CLIENTS_ROLE]"
-  echo "  done."
-fi
 
 echo ""
 echo "==> Keycloak initialization complete."

@@ -198,8 +198,10 @@ services:
       MGMT_DB_NAME:                    ${MGMT_DB_NAME:-notip_mgmt}
       MGMT_DB_USER:                    ${MGMT_DB_USER:-notip_mgmt}
       MGMT_DB_PASSWORD:                ${MGMT_DB_PASSWORD}
+      DB_AUTO_SYNC_IF_NO_MIGRATIONS:  "true"
       DB_ENCRYPTION_KEY:               ${DB_ENCRYPTION_KEY}
       KEYCLOAK_URL:                    http://nginx/auth
+      KEYCLOAK_ISSUER_URL:             http://localhost/auth/realms/${KEYCLOAK_REALM:-notip}
       KEYCLOAK_REALM:                  ${KEYCLOAK_REALM:-notip}
       KEYCLOAK_MGMT_CLIENT_ID:         ${KEYCLOAK_MGMT_CLIENT_ID:-notip-mgmt-backend}
       KEYCLOAK_MGMT_CLIENT_SECRET:     ${KEYCLOAK_MGMT_CLIENT_SECRET}
@@ -214,8 +216,6 @@ services:
       - keycloak_mgmt_client_secret
     volumes:
       - ca_certs:/certs:ro
-      - ../../notip-management-api/dist:/app/dist:ro
-      - ../../notip-management-api/node_modules:/app/node_modules:ro
     depends_on:
       nats-streams-init:
         condition: service_completed_successfully
@@ -235,14 +235,24 @@ services:
 
   data-api:
     image: ${DATA_API_IMAGE:-ghcr.io/notipswe/notip-data-api:latest}
-    command: ["dist/src/main"]
+    entrypoint:
+      - /bin/sh
+    command:
+      - -c
+      - node -e "require.resolve('pg')" >/dev/null 2>&1 || npm install --omit=dev --no-audit --no-fund --silent pg@8.16.0; exec node dist/src/main
     environment:
-      PORT:             3000
-      DB_HOST:          ${MEASURES_DB_HOST:-measures-db}
-      DB_PORT:          ${MEASURES_DB_PORT:-5432}
-      DB_NAME:          ${MEASURES_DB_NAME:-notip_measures}
-      DB_USER:          ${MEASURES_DB_USER:-notip_measures}
-      DB_PASSWORD:      ${MEASURES_DB_PASSWORD}
+      PORT:               3000
+      DATA_API_PORT:      3000
+      DB_HOST:            ${MEASURES_DB_HOST:-measures-db}
+      DB_PORT:            ${MEASURES_DB_PORT:-5432}
+      DB_NAME:            ${MEASURES_DB_NAME:-notip_measures}
+      DB_USER:            ${MEASURES_DB_USER:-notip_measures}
+      DB_PASSWORD:        ${MEASURES_DB_PASSWORD}
+      MEASURES_DB_HOST:   ${MEASURES_DB_HOST:-measures-db}
+      MEASURES_DB_PORT:   ${MEASURES_DB_PORT:-5432}
+      MEASURES_DB_NAME:   ${MEASURES_DB_NAME:-notip_measures}
+      MEASURES_DB_USER:   ${MEASURES_DB_USER:-notip_measures}
+      MEASURES_DB_PASSWORD: ${MEASURES_DB_PASSWORD}
       KEYCLOAK_URL:     http://nginx/auth
       KEYCLOAK_REALM:   ${KEYCLOAK_REALM:-notip}
       NODE_EXTRA_CA_CERTS: /certs/ca.crt
@@ -334,7 +344,7 @@ services:
   frontend:
     image: ${FRONTEND_IMAGE:-ghcr.io/notipswe/notip-frontend:latest}
     volumes:
-      - ../../notip-frontend/notip-frontend-develop/dist/notip-frontend/browser:/usr/share/nginx/html:ro
+      - ./nginx/frontend/default.conf:/etc/nginx/conf.d/default.conf:ro
     restart: unless-stopped
     networks:
       - internal
