@@ -383,7 +383,7 @@ services:
       KEYCLOAK_SIMULATOR_CLIENT_ID:        ${KEYCLOAK_SIMULATOR_CLIENT_ID:-notip-simulator-backend}
       KEYCLOAK_SIMULATOR_CLIENT_SECRET_FILE: /run/secrets/keycloak_simulator_client_secret
       MGMT_API_URL:                        http://nginx/api/mgmt
-      PROVISIONING_URL:                    http://nginx/api/provision
+      PROVISIONING_URL:                    http://nginx
       NATS_URL:                            tls://nats:4222
       NATS_CA_CERT_PATH:                   /certs/ca.crt
       NATS_TLS_CERT:                       /certs/simulator.crt
@@ -406,7 +406,7 @@ services:
       - internal
 
   sim-cli:
-    image: ${SIM_CLI_IMAGE:-ghcr.io/notipswe/notip-simulator-cli:latest}
+    image: ${SIM_CLI_IMAGE:-notip-simulator-cli:local}
     profiles:
       - cli
     environment:
