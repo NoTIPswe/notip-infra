@@ -205,6 +205,7 @@ services:
       KEYCLOAK_REALM:                  ${KEYCLOAK_REALM:-notip}
       KEYCLOAK_MGMT_CLIENT_ID:         ${KEYCLOAK_MGMT_CLIENT_ID:-notip-mgmt-backend}
       KEYCLOAK_MGMT_CLIENT_SECRET:     ${KEYCLOAK_MGMT_CLIENT_SECRET}
+      MOCK_NATS:                       "false"
       NODE_EXTRA_CA_CERTS:             /certs/ca.crt
       NATS_URL:                        tls://nats:4222
       NATS_TLS_CA:                     /certs/ca.crt
@@ -253,6 +254,7 @@ services:
       MEASURES_DB_NAME:   ${MEASURES_DB_NAME:-notip_measures}
       MEASURES_DB_USER:   ${MEASURES_DB_USER:-notip_measures}
       MEASURES_DB_PASSWORD: ${MEASURES_DB_PASSWORD}
+      MGMT_API_URL:      http://management-api:3000
       KEYCLOAK_URL:     http://nginx/auth
       KEYCLOAK_REALM:   ${KEYCLOAK_REALM:-notip}
       NODE_EXTRA_CA_CERTS: /certs/ca.crt
@@ -375,6 +377,7 @@ services:
     image: ${SIMULATOR_IMAGE:-ghcr.io/notipswe/notip-simulator-backend:latest}
     environment:
       SIMULATOR_PORT:                      ${SIMULATOR_PORT:-8090}
+      SQLITE_PATH:                         /tmp/simulator.db
       KEYCLOAK_URL:                        http://nginx/auth
       KEYCLOAK_REALM:                      ${KEYCLOAK_REALM:-notip}
       KEYCLOAK_SIMULATOR_CLIENT_ID:        ${KEYCLOAK_SIMULATOR_CLIENT_ID:-notip-simulator-backend}
@@ -382,6 +385,9 @@ services:
       MGMT_API_URL:                        http://nginx/api/mgmt
       PROVISIONING_URL:                    http://nginx/api/provision
       NATS_URL:                            tls://nats:4222
+      NATS_CA_CERT_PATH:                   /certs/ca.crt
+      NATS_TLS_CERT:                       /certs/simulator.crt
+      NATS_TLS_KEY:                        /certs/simulator.key
     secrets:
       - keycloak_simulator_client_secret
     volumes:
@@ -398,6 +404,16 @@ services:
     restart: unless-stopped
     networks:
       - internal
+
+  sim-cli:
+    image: ${SIM_CLI_IMAGE:-ghcr.io/notipswe/notip-simulator-cli:latest}
+    profiles:
+      - cli
+    environment:
+      SIMULATOR_URL: http://simulator:8090
+    networks:
+      - internal
+
 
 # Networks
 networks:

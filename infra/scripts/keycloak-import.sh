@@ -169,6 +169,57 @@ ensure_sub_mapper() {
   echo "  done."
 }
 
+ensure_username_mapper() {
+  echo "==> Ensuring username mapper in notip-claims"
+
+  local claims_scope_id
+  claims_scope_id=$(get_client_scope_uuid "notip-claims")
+
+  if [ -z "$claims_scope_id" ] || [ "$claims_scope_id" = "null" ]; then
+    echo "  WARNING: notip-claims scope not found — skipping username mapper."
+    return
+  fi
+
+  ensure_scope_mapper \
+    "$claims_scope_id" \
+    "username" \
+    "oidc-usermodel-attribute-mapper" \
+    '{"user.attribute":"username","claim.name":"username","jsonType.label":"String","id.token.claim":"true","access.token.claim":"true","userinfo.token.claim":"true"}'
+
+  echo "  done."
+}
+
+ensure_user_profile_settings() {
+  echo "==> Ensuring realm user profile settings"
+
+  local profile_json
+  local patched_profile_json
+
+  profile_json=$(curl -sf \
+    -H "Authorization: Bearer $TOKEN" \
+    "$KEYCLOAK_URL/auth/admin/realms/notip/users/profile")
+
+  patched_profile_json=$(echo "$profile_json" | jq '
+    .unmanagedAttributePolicy = "ADMIN_EDIT"
+    | .attributes = ((.attributes // []) | map(
+        if (.name == "firstName" or .name == "lastName") then
+          del(.required)
+        else
+          .
+        end
+      ))
+  ')
+
+  curl -sf -X PUT \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    "$KEYCLOAK_URL/auth/admin/realms/notip/users/profile" \
+    -d "$patched_profile_json" \
+    >/dev/null
+
+  echo "  done."
+}
+
 ensure_user_client_role() {
   local user_id="$1"
   local client_uuid="$2"
@@ -245,6 +296,8 @@ set_client_secret "notip-simulator-backend" "$SIM_SECRET"
 
 ensure_mgmt_audience_mapper
 ensure_sub_mapper
+ensure_username_mapper
+ensure_user_profile_settings
 
 # Assign system_admin role to notip-mgmt-backend service account
 echo "==> Assigning manage-clients role to notip-mgmt-backend service account"

@@ -2,7 +2,9 @@ COMPOSE_FILE := compose/docker-compose.yml
 COMPOSE_MONITORING := compose/docker-compose.monitoring.yml
 COMPOSE_CMD := docker compose --project-directory . -f ${COMPOSE_FILE}
 
-.PHONY: bootstrap up up-monitoring down reset reset-all logs ps keycloak-import health lint
+.PHONY: bootstrap up up-with-migrations up-monitoring down reset reset-all logs ps keycloak-import health lint \
+	migration-run migration-revert migration-run-management migration-revert-management \
+	migration-run-data migration-revert-data migration-run-all migration-revert-all
 
 bootstrap:
 	@bash scripts/bootstrap.sh
@@ -37,26 +39,28 @@ up:
 	      simulator|simulator-backend|notip-simulator-backend) \
 	        COMPOSE_ENV="$$COMPOSE_ENV SIMULATOR_IMAGE=notip-simulator-backend:local"; \
 	        LOCAL_IMAGES="$$LOCAL_IMAGES notip-simulator-backend:local" ;; \
+	      sim-cli|cli) \
+	        COMPOSE_ENV="$$COMPOSE_ENV SIM_CLI_IMAGE=notip-simulator-cli:local"; \
+	        LOCAL_IMAGES="$$LOCAL_IMAGES notip-simulator-cli:local" ;; \
 	      '') ;; \
 	      *) \
 	        echo "Unknown local service '$$svc'."; \
-	        echo "Valid values: management-api,data-api,data-consumer,provisioning-service,frontend,simulator"; \
+	        echo "Valid values: management-api,data-api,data-consumer,provisioning-service,frontend,simulator,sim-cli"; \
 	        exit 1 ;; \
 	    esac; \
 	  done; \
 	  for image in $$LOCAL_IMAGES; do \
-	    if ! docker image inspect "$$image" >/dev/null 2>&1; then \
-	      echo "Local image '$$image' not found. Building it now..."; \
-	      case "$$image" in \
-	        notip-management-api:local) docker build --target prod -t "$$image" ../../notip-management-api ;; \
-	        notip-data-api:local) docker build --target prod -t "$$image" ../../notip-data-api ;; \
-	        notip-data-consumer:local) docker build --target prod -t "$$image" ../../notip-data-consumer ;; \
-	        notip-provisioning-service:local) docker build --target prod -t "$$image" ../../notip-provisioning-service ;; \
-	        notip-frontend:local) docker build --target prod -t "$$image" ../../notip-frontend ;; \
-	        notip-simulator-backend:local) docker build --target prod -t "$$image" ../../notip-simulator-backend ;; \
-	        *) echo "No build rule configured for local image '$$image'."; exit 1 ;; \
-	      esac; \
-	    fi; \
+	    echo "Building local image '$$image'..."; \
+	    case "$$image" in \
+	      notip-management-api:local) docker build --target prod -t "$$image" ../../notip-management-api ;; \
+	      notip-data-api:local) docker build --target prod -t "$$image" ../../notip-data-api ;; \
+	      notip-data-consumer:local) docker build --target prod -t "$$image" ../../notip-data-consumer ;; \
+	      notip-provisioning-service:local) docker build --target prod -t "$$image" ../../notip-provisioning-service ;; \
+	      notip-frontend:local) docker build --target prod -t "$$image" ../../notip-frontend ;; \
+	      notip-simulator-backend:local) docker build --target prod -t "$$image" ../../notip-simulator-backend ;; \
+	      notip-simulator-cli:local) docker build --target prod -t "$$image" ../../notip-simulator-cli ;; \
+	      *) echo "No build rule configured for local image '$$image'."; exit 1 ;; \
+	    esac; \
 	  done; \
 	  echo "Using local images for: $$LOCAL_SERVICES"; \
 	fi; \
@@ -69,6 +73,10 @@ up:
 
 up-monitoring:
 	docker compose -f $(COMPOSE_MONITORING) up -d
+
+up-with-migrations:
+	@$(MAKE) up LOCAL="$(or $(LOCAL),$(local))"
+	@$(MAKE) migration-run-all
 
 down:
 	$(COMPOSE_CMD) down
@@ -110,26 +118,28 @@ reset:
 	      simulator|simulator-backend|notip-simulator-backend) \
 	        COMPOSE_ENV="$$COMPOSE_ENV SIMULATOR_IMAGE=notip-simulator-backend:local"; \
 	        LOCAL_IMAGES="$$LOCAL_IMAGES notip-simulator-backend:local" ;; \
+	      sim-cli|cli) \
+	        COMPOSE_ENV="$$COMPOSE_ENV SIM_CLI_IMAGE=notip-simulator-cli:local"; \
+	        LOCAL_IMAGES="$$LOCAL_IMAGES notip-simulator-cli:local" ;; \
 	      '') ;; \
 	      *) \
 	        echo "Unknown local service '$$svc'."; \
-	        echo "Valid values: management-api,data-api,data-consumer,provisioning-service,frontend,simulator"; \
+	        echo "Valid values: management-api,data-api,data-consumer,provisioning-service,frontend,simulator,sim-cli"; \
 	        exit 1 ;; \
 	    esac; \
 	  done; \
 	  for image in $$LOCAL_IMAGES; do \
-	    if ! docker image inspect "$$image" >/dev/null 2>&1; then \
-	      echo "Local image '$$image' not found. Building it now..."; \
-	      case "$$image" in \
-	        notip-management-api:local) docker build --target prod -t "$$image" ../../notip-management-api ;; \
-	        notip-data-api:local) docker build --target prod -t "$$image" ../../notip-data-api ;; \
-	        notip-data-consumer:local) docker build --target prod -t "$$image" ../../notip-data-consumer ;; \
-	        notip-provisioning-service:local) docker build --target prod -t "$$image" ../../notip-provisioning-service ;; \
-	        notip-frontend:local) docker build --target prod -t "$$image" ../../notip-frontend ;; \
-	        notip-simulator-backend:local) docker build --target prod -t "$$image" ../../notip-simulator-backend ;; \
-	        *) echo "No build rule configured for local image '$$image'."; exit 1 ;; \
-	      esac; \
-	    fi; \
+	    echo "Building local image '$$image'..."; \
+	    case "$$image" in \
+	      notip-management-api:local) docker build --target prod -t "$$image" ../../notip-management-api ;; \
+	      notip-data-api:local) docker build --target prod -t "$$image" ../../notip-data-api ;; \
+	      notip-data-consumer:local) docker build --target prod -t "$$image" ../../notip-data-consumer ;; \
+	      notip-provisioning-service:local) docker build --target prod -t "$$image" ../../notip-provisioning-service ;; \
+	      notip-frontend:local) docker build --target prod -t "$$image" ../../notip-frontend ;; \
+	      notip-simulator-backend:local) docker build --target prod -t "$$image" ../../notip-simulator-backend ;; \
+	      notip-simulator-cli:local) docker build --target prod -t "$$image" ../../notip-simulator-cli ;; \
+	      *) echo "No build rule configured for local image '$$image'."; exit 1 ;; \
+	    esac; \
 	  done; \
 	  echo "Using local images for: $$LOCAL_SERVICES"; \
 	fi; \
@@ -164,3 +174,24 @@ health:
 
 lint:
 	pre-commit run --all-files
+
+
+migration-run-management:
+	$(COMPOSE_CMD) exec -T management-api node ./node_modules/typeorm/cli.js -d dist/src/database/data-source.js migration:run
+
+migration-revert-management:
+	$(COMPOSE_CMD) exec -T management-api node ./node_modules/typeorm/cli.js -d dist/src/database/data-source.js migration:revert
+
+migration-run-data:
+	$(COMPOSE_CMD) exec -T data-api node ./node_modules/typeorm/cli.js -d dist/src/database/data-source.js migration:run
+
+migration-revert-data:
+	$(COMPOSE_CMD) exec -T data-api node ./node_modules/typeorm/cli.js -d dist/src/database/data-source.js migration:revert
+
+migration-run-all: migration-run-management migration-run-data
+
+migration-revert-all: migration-revert-data migration-revert-management
+
+migration-run: migration-run-management
+
+migration-revert: migration-revert-management

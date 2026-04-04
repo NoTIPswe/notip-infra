@@ -56,6 +56,20 @@
           }
         },
         {
+          "name": "username",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute":       "username",
+            "claim.name":           "username",
+            "jsonType.label":       "String",
+            "id.token.claim":       "true",
+            "access.token.claim":   "true",
+            "userinfo.token.claim": "true"
+          }
+        },
+        {
           "name": "tenant-id-mapper",
           "protocol": "openid-connect",
           "protocolMapper": "oidc-usermodel-attribute-mapper",
