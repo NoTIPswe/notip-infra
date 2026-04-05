@@ -347,7 +347,6 @@ services:
     volumes:
       - ca_certs:/certs:ro   # shared certs and service mTLS material
       - ca_private:/ca-private:ro
-      - ../../notip-provisioning-service/dist:/app/dist:ro
     depends_on:
       nats-streams-init:
         condition: service_completed_successfully
