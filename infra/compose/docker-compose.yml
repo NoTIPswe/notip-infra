@@ -11,9 +11,12 @@ services:
       context: .
       dockerfile: docker/provisioning-init/Dockerfile
     command: ["/bin/bash", "/scripts/provisioning-init.sh"]
+    environment:
+      CA_PRIVATE_DIR: /ca-private
     volumes:
       - ./scripts/provisioning-init.sh:/scripts/provisioning-init.sh:ro
       - ca_certs:/certs
+      - ca_private:/ca-private
     restart: "no"
 
   nats:
@@ -100,6 +103,16 @@ services:
 
   measures-db:
     image: ${TIMESCALE_IMAGE:-timescale/timescaledb:latest-pg17}
+    command:
+      - postgres
+      - -c
+      - ssl=on
+      - -c
+      - ssl_cert_file=/certs/measures-db.crt
+      - -c
+      - ssl_key_file=/certs/measures-db.key
+      - -c
+      - ssl_ca_file=/certs/ca.crt
     environment:
       POSTGRES_DB:            ${MEASURES_DB_NAME:-notip_measures}
       POSTGRES_USER:          ${MEASURES_DB_USER:-notip_measures}
@@ -108,6 +121,10 @@ services:
       - measures_db_password
     volumes:
       - measures_db:/var/lib/postgresql/data
+      - ca_certs:/certs:ro
+    depends_on:
+      provisioning-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${MEASURES_DB_USER:-notip_measures} -d ${MEASURES_DB_NAME:-notip_measures}"]
       interval: 5s
@@ -295,7 +312,8 @@ services:
       NATS_TLS_CERT:            /certs/data-consumer.crt
       NATS_TLS_KEY:             /certs/data-consumer.key
       DB_PASSWORD_FILE:         /run/secrets/measures_db_password
-      DB_SSL_MODE:              "require"
+      DB_SSL_MODE:              "verify-full"
+      DB_SSL_ROOT_CERT:         /certs/ca.crt
       HEARTBEAT_GRACE_PERIOD_MS: "120000"
       GATEWAY_BUFFER_SIZE:      "1000"
     secrets:
@@ -318,6 +336,7 @@ services:
     command: ["dist/src/main"]
     environment:
       PORT:         3000
+      CA_KEY_PATH:  /ca-private/ca.key
       NODE_EXTRA_CA_CERTS: /certs/ca.crt
       NATS_URL:     tls://nats:4222
       NATS_CREDENTIALS: "none"
@@ -326,7 +345,8 @@ services:
       NATS_TLS_KEY:  /certs/provisioning.key
       CERTS_DIR:    /certs
     volumes:
-      - ca_certs:/certs   # read-write: signs gateway CSRs with ca.key
+      - ca_certs:/certs:ro   # shared certs and service mTLS material
+      - ca_private:/ca-private:ro
       - ../../notip-provisioning-service/dist:/app/dist:ro
     depends_on:
       nats-streams-init:
@@ -428,6 +448,9 @@ volumes:
     # DO NOT delete this volume without re-provisioning all gateways.
     # Destroying it invalidates all gateway mTLS certificates.
     # Use `make reset` (preserves this volume) not `make reset-all`.
+  ca_private:
+    # Contains CA private material only (ca.key, ca.srl).
+    # Keep this volume mounted only where certificate signing is required.
   nats_data:
   keycloak_db:
   mgmt_db:
