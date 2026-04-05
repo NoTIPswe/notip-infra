@@ -5,7 +5,38 @@
 set -euo pipefail
 
 CERTS_DIR="${CERTS_DIR:-/certs}"
+PROVISIONING_UID="${PROVISIONING_UID:-1000}"
+PROVISIONING_GID="${PROVISIONING_GID:-1000}"
+DATA_API_UID="${DATA_API_UID:-1000}"
+DATA_API_GID="${DATA_API_GID:-1000}"
+MANAGEMENT_API_UID="${MANAGEMENT_API_UID:-1000}"
+MANAGEMENT_API_GID="${MANAGEMENT_API_GID:-1000}"
+DATA_CONSUMER_UID="${DATA_CONSUMER_UID:-999}"
+DATA_CONSUMER_GID="${DATA_CONSUMER_GID:-999}"
 mkdir -p "$CERTS_DIR"
+
+fix_permissions() {
+  # Keep private keys restricted, then grant ownership to the non-root
+  # services that must read them.
+  chmod 600 "$CERTS_DIR"/*.key 2>/dev/null || true
+  chmod 644 "$CERTS_DIR"/*.crt 2>/dev/null || true
+
+  if [ -f "$CERTS_DIR/ca.key" ]; then
+    chown "${PROVISIONING_UID}:${PROVISIONING_GID}" "$CERTS_DIR/ca.key"
+  fi
+  if [ -f "$CERTS_DIR/provisioning.key" ]; then
+    chown "${PROVISIONING_UID}:${PROVISIONING_GID}" "$CERTS_DIR/provisioning.key"
+  fi
+  if [ -f "$CERTS_DIR/data-api.key" ]; then
+    chown "${DATA_API_UID}:${DATA_API_GID}" "$CERTS_DIR/data-api.key"
+  fi
+  if [ -f "$CERTS_DIR/management-api.key" ]; then
+    chown "${MANAGEMENT_API_UID}:${MANAGEMENT_API_GID}" "$CERTS_DIR/management-api.key"
+  fi
+  if [ -f "$CERTS_DIR/data-consumer.key" ]; then
+    chown "${DATA_CONSUMER_UID}:${DATA_CONSUMER_GID}" "$CERTS_DIR/data-consumer.key"
+  fi
+}
 
 # ── CA ────────────────────────────────────────────────────────────────────────
 if [ ! -f "$CERTS_DIR/ca.key" ] || [ ! -f "$CERTS_DIR/ca.crt" ]; then
@@ -89,6 +120,8 @@ gen_cert "data-api"
 gen_cert "data-consumer"
 gen_cert "provisioning"
 gen_cert "simulator"
+
+fix_permissions
 
 echo ""
 echo "==> All certs ready:"

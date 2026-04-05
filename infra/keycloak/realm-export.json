@@ -21,6 +21,7 @@
   "ssoSessionMaxLifespan": 1800,
   "revokeRefreshToken": true,
   "refreshTokenMaxReuse": 0,
+  "defaultRoles": [],
   "roles": {
     "realm": [
       { "name": "system_admin",  "composite": false },
@@ -39,6 +40,35 @@
         "display.on.consent.screen": "false"
       },
       "protocolMappers": [
+        {
+          "name": "sub-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-property-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute": "id",
+            "claim.name": "sub",
+            "jsonType.label": "String",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "false",
+            "introspection.token.claim": "true"
+          }
+        },
+        {
+          "name": "username",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.attribute":       "username",
+            "claim.name":           "username",
+            "jsonType.label":       "String",
+            "id.token.claim":       "true",
+            "access.token.claim":   "true",
+            "userinfo.token.claim": "true"
+          }
+        },
         {
           "name": "tenant-id-mapper",
           "protocol": "openid-connect",
@@ -66,16 +96,101 @@
             "access.token.claim":   "true",
             "userinfo.token.claim": "true"
           }
+        },
+        {
+          "name": "mgmt-audience-mapper",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "included.client.audience": "notip-mgmt-backend",
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
+        }
+      ]
+    },
+    {
+      "name": "notip-roles",
+      "description": "Adds realm and client role claims to access tokens",
+      "protocol": "openid-connect",
+      "attributes": {
+        "include.in.token.scope": "true",
+        "display.on.consent.screen": "false"
+      },
+      "protocolMappers": [
+        {
+          "name": "realm roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "realm_access.roles",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "user.attribute": "foo"
+          }
+        },
+        {
+          "name": "client roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-client-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "resource_access.${client_id}.roles",
+            "jsonType.label": "String",
+            "multivalued": "true",
+            "user.attribute": "foo"
+          }
+        },
+        {
+          "name": "audience resolve",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-resolve-mapper",
+          "consentRequired": false,
+          "config": {
+            "introspection.token.claim": "true",
+            "access.token.claim": "true"
+          }
         }
       ]
     }
   ],
   "defaultDefaultClientScopes": [
-    "web-origins",
-    "profile",
-    "roles",
-    "email",
-    "notip-claims"
+    "notip-claims",
+    "notip-roles"
+  ],
+  "users": [
+    {
+      "username": "__KEYCLOAK_ADMIN_USER__",
+      "enabled": true,
+      "emailVerified": true,
+      "attributes": {
+        "role": [
+          "system_admin"
+        ]
+      },
+      "credentials": [
+        {
+          "type": "password",
+          "value": "__KEYCLOAK_ADMIN_PASSWORD__",
+          "temporary": false
+        }
+      ],
+      "realmRoles": [
+        "system_admin"
+      ],
+      "clientRoles": {
+        "realm-management": [
+          "impersonation"
+        ]
+      }
+    }
   ],
   "clients": [
     {
@@ -97,7 +212,7 @@
         "pkce.code.challenge.method": "S256"
       },
       "defaultClientScopes": [
-        "web-origins", "profile", "roles", "email", "notip-claims"
+        "notip-claims", "notip-roles"
       ]
     },
     {
@@ -111,7 +226,7 @@
       "directAccessGrantsEnabled": false,
       "secret": "REPLACE_ME",
       "defaultClientScopes": [
-        "web-origins", "profile", "roles", "email", "notip-claims"
+        "notip-claims", "notip-roles"
       ]
     },
     {
@@ -125,7 +240,7 @@
       "directAccessGrantsEnabled": false,
       "secret": "REPLACE_ME",
       "defaultClientScopes": [
-        "web-origins", "profile", "roles", "email", "notip-claims"
+        "notip-claims", "notip-roles"
       ]
     }
   ]
