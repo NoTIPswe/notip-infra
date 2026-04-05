@@ -42,14 +42,14 @@ services:
   # JetStream stream bootstrap (runs once, exits 0)
   nats-streams-init:
     image: natsio/nats-box:latest
-    command: ["/bin/sh", "/scripts/nats-streams-init.sh"]
+    command: ["/bin/sh", "/tmp/nats-streams-init.sh"]
     environment:
       NATS_URL:  "tls://nats:4222"
       NATS_CA:   "/certs/ca.crt"
       NATS_CERT: "/certs/management-api.crt"
       NATS_KEY:  "/certs/management-api.key"
     volumes:
-      - ./scripts/nats-streams-init.sh:/scripts/nats-streams-init.sh:ro
+      - ./scripts/nats-streams-init.sh:/tmp/nats-streams-init.sh:ro
       - ./nats/streams:/streams:ro
       - ca_certs:/certs:ro
     depends_on:
@@ -378,6 +378,7 @@ services:
     environment:
       SIMULATOR_PORT:                      ${SIMULATOR_PORT:-8090}
       SQLITE_PATH:                         /tmp/simulator.db
+      RECOVERY_MODE:                       "true"
       KEYCLOAK_URL:                        http://nginx/auth
       KEYCLOAK_REALM:                      ${KEYCLOAK_REALM:-notip}
       KEYCLOAK_SIMULATOR_CLIENT_ID:        ${KEYCLOAK_SIMULATOR_CLIENT_ID:-notip-simulator-backend}
@@ -392,6 +393,7 @@ services:
       - keycloak_simulator_client_secret
     volumes:
       - ca_certs:/certs:ro
+      - simulator_db:/tmp
     profiles:
       - simulator
     depends_on:
@@ -430,6 +432,7 @@ volumes:
   keycloak_db:
   mgmt_db:
   measures_db:
+  simulator_db:
 
 # Secrets
 secrets:
