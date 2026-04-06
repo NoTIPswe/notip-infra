@@ -30,7 +30,7 @@
       },
       "targets": [
         {
-          "expr": "nats_server_connections",
+          "expr": "gnatsd_varz_connections",
           "legendFormat": "connections",
           "refId": "A"
         }
