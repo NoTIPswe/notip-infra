@@ -139,6 +139,7 @@ services:
     image: ${KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:26.5}
     command:
       - start-dev
+      - --features=token-exchange
       - --db=postgres
       - --db-url=jdbc:postgresql://keycloak-db:5432/keycloak
       - --db-username=keycloak

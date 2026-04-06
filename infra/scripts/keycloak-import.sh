@@ -267,6 +267,7 @@ ensure_mgmt_realm_management_roles() {
     view-clients
     manage-clients
     view-realm
+    impersonation
   )
 
   for role_name in "${required_roles[@]}"; do
