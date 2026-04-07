@@ -108,6 +108,21 @@
             "access.token.claim": "true",
             "introspection.token.claim": "true"
           }
+        },
+        {
+          "name": "act-sub-impersonation",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-session-note-mapper",
+          "consentRequired": false,
+          "config": {
+            "user.session.note": "IMPERSONATOR_ID",
+            "claim.name": "act.sub",
+            "jsonType.label": "String",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "userinfo.token.claim": "true",
+            "introspection.token.claim": "true"
+          }
         }
       ]
     },
@@ -225,6 +240,7 @@
       "standardFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "secret": "REPLACE_ME",
+      "standardExchangeTokenEnabled": true,
       "defaultClientScopes": [
         "notip-claims", "notip-roles"
       ]
