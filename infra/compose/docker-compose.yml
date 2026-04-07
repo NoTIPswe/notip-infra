@@ -1,8 +1,5 @@
 name: notip
 
-# All relative paths are resolved from the repo root because the Makefile
-# passes --project-directory . to docker compose.
-
 services:
 
   # ── CA + cert generation (runs once, exits 0) ───────────────────────────────
@@ -23,8 +20,7 @@ services:
     image: ${NATS_IMAGE:-nats:2.12-alpine}
     command: ["-c", "/etc/nats/nats-server.conf"]
     ports:
-      - "4222:4222"   # mTLS — exposed for IoT gateways
-      # 8222 (monitoring) intentionally NOT exposed; use docker exec or override
+      - "4222:4222"
     volumes:
       - ./nats/nats-server.conf:/etc/nats/nats-server.conf:ro
       - ca_certs:/certs:ro
@@ -65,12 +61,12 @@ services:
   # Databases
   keycloak-db:
     image: ${POSTGRES_IMAGE:-postgres:18.3-alpine}
+    env_file:
+      - .env
     environment:
-      POSTGRES_DB:            keycloak
-      POSTGRES_USER:          keycloak
-      POSTGRES_PASSWORD_FILE: /run/secrets/keycloak_db_password
-    secrets:
-      - keycloak_db_password
+      POSTGRES_DB:       keycloak
+      POSTGRES_USER:    keycloak
+      POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
     volumes:
       - keycloak_db:/var/lib/postgresql/data
     healthcheck:
@@ -84,12 +80,12 @@ services:
 
   mgmt-db:
     image: ${POSTGRES_IMAGE:-postgres:18.3-alpine}
+    env_file:
+      - .env
     environment:
-      POSTGRES_DB:            ${MGMT_DB_NAME:-notip_mgmt}
-      POSTGRES_USER:          ${MGMT_DB_USER:-notip_mgmt}
-      POSTGRES_PASSWORD_FILE: /run/secrets/mgmt_db_password
-    secrets:
-      - mgmt_db_password
+      POSTGRES_DB:       ${MGMT_DB_NAME:-notip_mgmt}
+      POSTGRES_USER:    ${MGMT_DB_USER:-notip_mgmt}
+      POSTGRES_PASSWORD: ${MGMT_DB_PASSWORD}
     volumes:
       - mgmt_db:/var/lib/postgresql/data
     healthcheck:
@@ -103,6 +99,8 @@ services:
 
   measures-db:
     image: ${TIMESCALE_IMAGE:-timescale/timescaledb:latest-pg17}
+    env_file:
+      - .env
     command:
       - postgres
       - -c
@@ -114,11 +112,9 @@ services:
       - -c
       - ssl_ca_file=/certs/ca.crt
     environment:
-      POSTGRES_DB:            ${MEASURES_DB_NAME:-notip_measures}
-      POSTGRES_USER:          ${MEASURES_DB_USER:-notip_measures}
-      POSTGRES_PASSWORD_FILE: /run/secrets/measures_db_password
-    secrets:
-      - measures_db_password
+      POSTGRES_DB:       ${MEASURES_DB_NAME:-notip_measures}
+      POSTGRES_USER:    ${MEASURES_DB_USER:-notip_measures}
+      POSTGRES_PASSWORD: ${MEASURES_DB_PASSWORD}
     volumes:
       - measures_db:/var/lib/postgresql/data
       - ca_certs:/certs:ro
@@ -137,6 +133,8 @@ services:
   # Keycloak
   keycloak:
     image: ${KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:26.5}
+    env_file:
+      - .env
     command:
       - start-dev
       - --features=token-exchange
@@ -149,23 +147,20 @@ services:
       - --proxy-headers=xforwarded
       - --hostname-strict=false
     environment:
-      KC_DB_PASSWORD:              ${KEYCLOAK_DB_PASSWORD:-keycloak}
+      KC_DB_PASSWORD:              ${KEYCLOAK_DB_PASSWORD}
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER:-admin}
-      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-admin}
-      KC_HTTP_RELATIVE_PATH:       /auth
-      KC_HOSTNAME_URL:             http://localhost/auth
-      KC_HOSTNAME_ADMIN_URL:       http://localhost/auth
-      KC_HOSTNAME_STRICT:          "false"
-      KC_HOSTNAME_STRICT_HTTPS:    "false"
-      KC_HTTP_ENABLED:             "true"
-    secrets:
-      - keycloak_admin_password
-      - keycloak_db_password
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+      KC_HTTP_RELATIVE_PATH:        /auth
+      KC_HOSTNAME_URL:            http://localhost/auth
+      KC_HOSTNAME_ADMIN_URL:      http://localhost/auth
+      KC_HOSTNAME_STRICT:       "false"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
+      KC_HTTP_ENABLED:         "true"
     depends_on:
       keycloak-db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9000 && echo -e 'GET /auth/health/ready HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n' >&3 && cat <&3 | grep -q '200 OK'"]
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/9000 && echo -e 'GET /auth/health/ready HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n' >&3 && cat <&3 | grep -q '200 OK'"]
       interval: 10s
       timeout: 5s
       retries: 20
@@ -179,17 +174,15 @@ services:
     build:
       context: .
       dockerfile: docker/init-tools/Dockerfile
+    env_file:
+      - .env
     command: ["/bin/bash", "/scripts/keycloak-import.sh"]
     environment:
-      KEYCLOAK_URL:        "http://keycloak:8080"
-      KEYCLOAK_ADMIN_USER: ${KEYCLOAK_ADMIN_USER:-admin}
+      KEYCLOAK_URL:         "http://keycloak:8080"
+      KEYCLOAK_ADMIN_USER:  ${KEYCLOAK_ADMIN_USER:-admin}
     volumes:
       - ./scripts/keycloak-import.sh:/scripts/keycloak-import.sh:ro
       - ./keycloak:/keycloak:ro
-    secrets:
-      - keycloak_admin_password
-      - keycloak_mgmt_client_secret
-      - keycloak_simulator_client_secret
     depends_on:
       keycloak:
         condition: service_healthy
@@ -201,38 +194,34 @@ services:
   management-api:
     image: ${MGMT_API_IMAGE:-ghcr.io/notipswe/notip-management-api:latest}
     command: ["dist/src/main"]
+    env_file:
+      - .env
     environment:
       PORT:                            3000
       MGMT_API_PORT:                   3000
-      # Compiled image expects these:
       DB_HOST:                         ${MGMT_DB_HOST:-mgmt-db}
       DB_PORT:                         ${MGMT_DB_PORT:-5432}
       DB_NAME:                         ${MGMT_DB_NAME:-notip_mgmt}
       DB_USER:                         ${MGMT_DB_USER:-notip_mgmt}
-      DB_PASSWORD:                     ${MGMT_DB_PASSWORD}
-      # Source code expects these:
-      MGMT_DB_HOST:                    ${MGMT_DB_HOST:-mgmt-db}
-      MGMT_DB_PORT:                    ${MGMT_DB_PORT:-5432}
-      MGMT_DB_NAME:                    ${MGMT_DB_NAME:-notip_mgmt}
-      MGMT_DB_USER:                    ${MGMT_DB_USER:-notip_mgmt}
-      MGMT_DB_PASSWORD:                ${MGMT_DB_PASSWORD}
-      DB_AUTO_SYNC_IF_NO_MIGRATIONS:  "true"
-      DB_ENCRYPTION_KEY:               ${DB_ENCRYPTION_KEY}
-      KEYCLOAK_URL:                    http://nginx/auth
-      KEYCLOAK_ISSUER_URL:             http://localhost/auth/realms/${KEYCLOAK_REALM:-notip}
-      KEYCLOAK_REALM:                  ${KEYCLOAK_REALM:-notip}
-      KEYCLOAK_MGMT_CLIENT_ID:         ${KEYCLOAK_MGMT_CLIENT_ID:-notip-mgmt-backend}
-      KEYCLOAK_MGMT_CLIENT_SECRET:     ${KEYCLOAK_MGMT_CLIENT_SECRET}
-      MOCK_NATS:                       "false"
-      NODE_EXTRA_CA_CERTS:             /certs/ca.crt
-      NATS_URL:                        tls://nats:4222
-      NATS_TLS_CA:                     /certs/ca.crt
-      NATS_TLS_CERT:                   /certs/management-api.crt
-      NATS_TLS_KEY:                    /certs/management-api.key
-    secrets:
-      - mgmt_db_password
-      - db_encryption_key
-      - keycloak_mgmt_client_secret
+      DB_PASSWORD:                   ${MGMT_DB_PASSWORD}
+      MGMT_DB_HOST:                  ${MGMT_DB_HOST:-mgmt-db}
+      MGMT_DB_PORT:                  ${MGMT_DB_PORT:-5432}
+      MGMT_DB_NAME:                  ${MGMT_DB_NAME:-notip_mgmt}
+      MGMT_DB_USER:                  ${MGMT_DB_USER:-notip_mgmt}
+      MGMT_DB_PASSWORD:              ${MGMT_DB_PASSWORD}
+      DB_AUTO_SYNC_IF_NO_MIGRATIONS: "true"
+      DB_ENCRYPTION_KEY:             ${DB_ENCRYPTION_KEY}
+      KEYCLOAK_URL:                  http://nginx/auth
+      KEYCLOAK_ISSUER_URL:           http://localhost/auth/realms/${KEYCLOAK_REALM:-notip}
+      KEYCLOAK_REALM:                ${KEYCLOAK_REALM:-notip}
+      KEYCLOAK_MGMT_CLIENT_ID:       ${KEYCLOAK_MGMT_CLIENT_ID:-notip-mgmt-backend}
+      KEYCLOAK_MGMT_CLIENT_SECRET:   ${KEYCLOAK_MGMT_CLIENT_SECRET}
+      MOCK_NATS:                     "false"
+      NODE_EXTRA_CA_CERTS:           /certs/ca.crt
+      NATS_URL:                      tls://nats:4222
+      NATS_TLS_CA:                   /certs/ca.crt
+      NATS_TLS_CERT:                 /certs/management-api.crt
+      NATS_TLS_KEY:                  /certs/management-api.key
     volumes:
       - ca_certs:/certs:ro
     depends_on:
@@ -259,6 +248,8 @@ services:
     command:
       - -c
       - node -e "require.resolve('pg')" >/dev/null 2>&1 || npm install --omit=dev --no-audit --no-fund --silent pg@8.16.0; exec node dist/src/main
+    env_file:
+      - .env
     environment:
       PORT:               3000
       DATA_API_PORT:      3000
@@ -280,8 +271,6 @@ services:
       NATS_TLS_CA:      /certs/ca.crt
       NATS_TLS_CERT:    /certs/data-api.crt
       NATS_TLS_KEY:     /certs/data-api.key
-    secrets:
-      - measures_db_password
     volumes:
       - ca_certs:/certs:ro
     depends_on:
@@ -301,6 +290,8 @@ services:
 
   data-consumer:
     image: ${DATA_CONSUMER_IMAGE:-ghcr.io/notipswe/notip-data-consumer:latest}
+    env_file:
+      - .env
     environment:
       DB_HOST:                  ${MEASURES_DB_HOST:-measures-db}
       DB_PORT:                  ${MEASURES_DB_PORT:-5432}
@@ -312,7 +303,6 @@ services:
       NATS_TLS_CA:              /certs/ca.crt
       NATS_TLS_CERT:            /certs/data-consumer.crt
       NATS_TLS_KEY:             /certs/data-consumer.key
-      DB_PASSWORD_FILE:         /run/secrets/measures_db_password
       DB_SSL_MODE:              "verify-full"
       DB_SSL_ROOT_CERT:         /certs/ca.crt
       HEARTBEAT_GRACE_PERIOD_MS: "120000"
@@ -320,8 +310,6 @@ services:
       ALERT_CONFIG_MAX_RETRIES: "10"
       ALERT_CONFIG_INITIAL_BACKOFF_MS: "1000"
       ALERT_CONFIG_MAX_BACKOFF_MS: "30000"
-    secrets:
-      - measures_db_password
     volumes:
       - ca_certs:/certs:ro
     depends_on:
@@ -338,6 +326,8 @@ services:
   provisioning-service:
     image: ${PROVISIONING_IMAGE:-ghcr.io/notipswe/notip-provisioning-service:latest}
     command: ["dist/src/main"]
+    env_file:
+      - .env
     environment:
       PORT:         3000
       CA_KEY_PATH:  /ca-private/ca.key
@@ -378,7 +368,6 @@ services:
     image: nginx:1.27-alpine
     ports:
       - "80:80"
-      # - "443:443"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./nginx/conf.d:/etc/nginx/conf.d:ro
@@ -398,22 +387,22 @@ services:
   # Simulator (opt-in: docker compose --profile simulator up)
   simulator:
     image: ${SIMULATOR_IMAGE:-ghcr.io/notipswe/notip-simulator-backend:latest}
+    env_file:
+      - .env
     environment:
-      SIMULATOR_PORT:                      ${SIMULATOR_PORT:-8090}
-      SQLITE_PATH:                         /tmp/simulator.db
-      RECOVERY_MODE:                       "true"
-      KEYCLOAK_URL:                        http://nginx/auth
-      KEYCLOAK_REALM:                      ${KEYCLOAK_REALM:-notip}
-      KEYCLOAK_SIMULATOR_CLIENT_ID:        ${KEYCLOAK_SIMULATOR_CLIENT_ID:-notip-simulator-backend}
-      KEYCLOAK_SIMULATOR_CLIENT_SECRET_FILE: /run/secrets/keycloak_simulator_client_secret
-      MGMT_API_URL:                        http://nginx/api/mgmt
-      PROVISIONING_URL:                    http://nginx
-      NATS_URL:                            tls://nats:4222
-      NATS_CA_CERT_PATH:                   /certs/ca.crt
-      NATS_TLS_CERT:                       /certs/simulator.crt
-      NATS_TLS_KEY:                        /certs/simulator.key
-    secrets:
-      - keycloak_simulator_client_secret
+      SIMULATOR_PORT:                ${SIMULATOR_PORT:-8090}
+      SQLITE_PATH:                   /tmp/simulator.db
+      RECOVERY_MODE:               "true"
+      KEYCLOAK_URL:                http://nginx/auth
+      KEYCLOAK_REALM:              ${KEYCLOAK_REALM:-notip}
+      KEYCLOAK_SIMULATOR_CLIENT_ID:  ${KEYCLOAK_SIMULATOR_CLIENT_ID:-notip-simulator-backend}
+      KEYCLOAK_SIMULATOR_CLIENT_SECRET: ${KEYCLOAK_SIMULATOR_CLIENT_SECRET}
+      MGMT_API_URL:                  http://nginx/api/mgmt
+      PROVISIONING_URL:              http://nginx
+      NATS_URL:                     tls://nats:4222
+      NATS_CA_CERT_PATH:            /certs/ca.crt
+      NATS_TLS_CERT:                /certs/simulator.crt
+      NATS_TLS_KEY:                 /certs/simulator.key
     volumes:
       - ca_certs:/certs:ro
       - simulator_db:/tmp
@@ -448,31 +437,9 @@ networks:
 # Volumes
 volumes:
   ca_certs:
-    # DO NOT delete this volume without re-provisioning all gateways.
-    # Destroying it invalidates all gateway mTLS certificates.
-    # Use `make reset` (preserves this volume) not `make reset-all`.
   ca_private:
-    # Contains CA private material only (ca.key, ca.srl).
-    # Keep this volume mounted only where certificate signing is required.
   nats_data:
   keycloak_db:
   mgmt_db:
   measures_db:
   simulator_db:
-
-# Secrets
-secrets:
-  db_encryption_key:
-    file: ./secrets/db_encryption_key
-  mgmt_db_password:
-    file: ./secrets/mgmt_db_password
-  measures_db_password:
-    file: ./secrets/measures_db_password
-  keycloak_admin_password:
-    file: ./secrets/keycloak_admin_password
-  keycloak_db_password:
-    file: ./secrets/keycloak_db_password
-  keycloak_mgmt_client_secret:
-    file: ./secrets/keycloak_mgmt_client_secret
-  keycloak_simulator_client_secret:
-    file: ./secrets/keycloak_simulator_client_secret
