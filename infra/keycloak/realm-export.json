@@ -240,7 +240,6 @@
       "standardFlowEnabled": false,
       "directAccessGrantsEnabled": false,
       "secret": "REPLACE_ME",
-      "standardExchangeTokenEnabled": true,
       "defaultClientScopes": [
         "notip-claims", "notip-roles"
       ]
