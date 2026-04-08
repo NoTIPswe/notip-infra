@@ -1,3 +1,6 @@
+SECRETS_DIR="./secrets"
+
+mkdir -p "$SECRETS_DIR"
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -19,14 +22,21 @@ gen_secret() {
     local env_var="$1"
     local current_value
     current_value=$(grep -E "^${env_var}=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2-)
-    if [ -n "$current_value" ]; then
-        echo "  $env_var (exists, skipped)"
-        return
-    fi
     local value
     value=$(openssl rand -hex 32)
-    echo "${env_var}=${value}" >> "$ENV_FILE"
-    echo "  $env_var"
+    if grep -qE "^${env_var}=" "$ENV_FILE"; then
+        # Sostituisci la riga esistente
+        sed -i "s|^${env_var}=.*|${env_var}=${value}|" "$ENV_FILE"
+        echo "  $env_var (updated)"
+    else
+        echo "${env_var}=${value}" >> "$ENV_FILE"
+        echo "  $env_var (added)"
+    fi
+    if [ "$env_var" = "MEASURES_DB_PASSWORD" ]; then
+        echo -n "$value" > "$SECRETS_DIR/measures_db_password"
+        chmod 600 "$SECRETS_DIR/measures_db_password"
+        echo "  $env_var (and secrets/measures_db_password)"
+    fi
 }
 
 gen_secret DB_ENCRYPTION_KEY
