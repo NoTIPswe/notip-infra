@@ -1,7 +1,9 @@
+#!/usr/bin/env bash
+
+#!/usr/bin/env bash
 SECRETS_DIR="./secrets"
 
 mkdir -p "$SECRETS_DIR"
-#!/usr/bin/env bash
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -20,8 +22,6 @@ echo "==> generating secrets in .env"
 
 gen_secret() {
     local env_var="$1"
-    local current_value
-    current_value=$(grep -E "^${env_var}=" "$ENV_FILE" 2>/dev/null | cut -d'=' -f2-)
     local value
     value=$(openssl rand -hex 32)
     if grep -qE "^${env_var}=" "$ENV_FILE"; then
