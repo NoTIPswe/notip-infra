@@ -6,19 +6,7 @@ SECRETS_DIR="$REPO_ROOT/secrets"
 ENV_FILE="$REPO_ROOT/.env"
 ENV_EXAMPLE="$REPO_ROOT/.env.example"
 
-# ── helpers ──────────────────────────────────────────────────────────────────
-
-gen_secret() {
-  local file="$SECRETS_DIR/$1"
-  if [ ! -f "$file" ] || [ ! -s "$file" ]; then     # checks it the file so not exits or if it's empty
-    openssl rand -hex 32 > "$file"
-    echo "  generated: secrets/$1"
-  else
-    echo "  exists:    secrets/$1 (skipped)"
-  fi
-}
-
-# ── .env ─────────────────────────────────────────────────────────────────────
+mkdir -p "$SECRETS_DIR"
 
 echo "==> .env"
 if [ ! -f "$ENV_FILE" ]; then
@@ -28,45 +16,44 @@ else
     echo "  exists (skipped)"
 fi
 
-# ── secrets/ ─────────────────────────────────────────────────────────────────
+echo "==> generating secrets in .env"
 
-echo "==> secrets/"
-mkdir -p "$SECRETS_DIR"
-
-gen_secret db_encryption_key
-gen_secret mgmt_db_password
-gen_secret measures_db_password
-gen_secret keycloak_admin_password
-gen_secret keycloak_mgmt_client_secret
-gen_secret keycloak_simulator_client_secret
-gen_secret keycloak_db_password
-
-# ── sync secrets into .env ────────────────────────────────────────────────────
-# For dev convenience, keep .env in sync with generated secrets so
-# docker-compose.override.yml can use env_file instead of secrets: mounts.
-
-echo "==> syncing secrets into .env"
-
-sync_to_env() {
+gen_secret() {
     local env_var="$1"
-    local secret_file="$SECRETS_DIR/$2"
     local value
-    value="$(cat "$secret_file")"
-    #Replace the line if it exists, append if doesn't
-    if grep -q "^${env_var}=" "$ENV_FILE"; then
-        sed -i.bak "s|^${env_var}=.*|${env_var}=${value}|" "$ENV_FILE" && rm -f "${ENV_FILE}.bak"
+    value=$(openssl rand -hex 32)
+    if grep -qE "^${env_var}=" "$ENV_FILE"; then
+        # Sostituisci la riga esistente
+        sed -i.bak "s|^${env_var}=.*|${env_var}=${value}|" "$ENV_FILE"
+        rm -f "${ENV_FILE}.bak"
+        echo "  $env_var (updated)"
     else
         echo "${env_var}=${value}" >> "$ENV_FILE"
+        echo "  $env_var (added)"
+    fi
+    if [ "$env_var" = "MEASURES_DB_PASSWORD" ]; then
+        echo -n "$value" > "$SECRETS_DIR/measures_db_password"
+        chmod 644 "$SECRETS_DIR/measures_db_password"
+        echo "  $env_var (and secrets/measures_db_password, chmod 644)"
     fi
 }
 
-sync_to_env DB_ENCRYPTION_KEY              db_encryption_key
-sync_to_env MGMT_DB_PASSWORD               mgmt_db_password
-sync_to_env MEASURES_DB_PASSWORD           measures_db_password
-sync_to_env KEYCLOAK_ADMIN_PASSWORD        keycloak_admin_password
-sync_to_env KEYCLOAK_MGMT_CLIENT_SECRET    keycloak_mgmt_client_secret
-sync_to_env KEYCLOAK_SIMULATOR_CLIENT_SECRET keycloak_simulator_client_secret
-sync_to_env KEYCLOAK_DB_PASSWORD keycloak_db_password
+gen_secret DB_ENCRYPTION_KEY
+gen_secret MGMT_DB_PASSWORD
+gen_secret MEASURES_DB_PASSWORD
+gen_secret KEYCLOAK_ADMIN_PASSWORD
+gen_secret KEYCLOAK_MGMT_CLIENT_SECRET
+gen_secret KEYCLOAK_SIMULATOR_CLIENT_SECRET
+gen_secret KEYCLOAK_DB_PASSWORD
 
 echo ""
 echo "Bootstrap complete. Next: make up"
+echo ""
+echo "IMPORTANT: For production, add the generated ./secrets/measures_db_password file as a Docker secret in your docker-compose.yml, e.g.:"
+echo ""
+echo "  secrets:"
+echo "    measures_db_password:"
+echo "      file: ./secrets/measures_db_password"
+echo ""
+echo "And reference it in your service definition under 'secrets:' for data-consumer."
+echo "If your container runs as a non-root user, ensure you use an entrypoint script to copy the secret to a readable location before starting the app."
