@@ -1,14 +1,12 @@
 #!/usr/bin/env bash
-
-#!/usr/bin/env bash
-SECRETS_DIR="./secrets"
-
-mkdir -p "$SECRETS_DIR"
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+SECRETS_DIR="$REPO_ROOT/secrets"
 ENV_FILE="$REPO_ROOT/.env"
 ENV_EXAMPLE="$REPO_ROOT/.env.example"
+
+mkdir -p "$SECRETS_DIR"
 
 echo "==> .env"
 if [ ! -f "$ENV_FILE" ]; then
@@ -26,7 +24,8 @@ gen_secret() {
     value=$(openssl rand -hex 32)
     if grep -qE "^${env_var}=" "$ENV_FILE"; then
         # Sostituisci la riga esistente
-        sed -i "s|^${env_var}=.*|${env_var}=${value}|" "$ENV_FILE"
+        sed -i.bak "s|^${env_var}=.*|${env_var}=${value}|" "$ENV_FILE"
+        rm -f "${ENV_FILE}.bak"
         echo "  $env_var (updated)"
     else
         echo "${env_var}=${value}" >> "$ENV_FILE"
