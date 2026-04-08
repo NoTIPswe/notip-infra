@@ -1,3 +1,4 @@
+
 #!/usr/bin/env bash
 # Imports the notip realm and configures service account secrets + roles.
 # Idempotent: skips realm import if it already exists.
@@ -164,6 +165,25 @@ ensure_sub_mapper() {
 
   echo "  done."
 }
+ensure_sub_impersonation_scope() {
+  echo "==> Ensuring act.sub mapper in notip-claims"
+
+  local claims_scope_id
+  claims_scope_id=$(get_client_scope_uuid "notip-claims")
+
+  if [ -z "$claims_scope_id" ] || [ "$claims_scope_id" = "null" ]; then
+    echo "  WARNING: notip-claims scope not found — skipping username mapper."
+    return
+  fi
+
+  ensure_scope_mapper \
+    "$claims_scope_id" \
+    "act-sub-impersonation" \
+    "oidc-usersessionmodel-note-mapper" \
+    '{"user.session.note":"IMPERSONATOR_ID","claim.name":"act.sub","jsonType.label":"String","id.token.claim":"true","access.token.claim":"true","userinfo.token.claim":"true","introspection.token.claim":"true"}'
+
+  echo "  done."
+}
 
 ensure_username_mapper() {
   echo "==> Ensuring username mapper in notip-claims"
@@ -293,6 +313,7 @@ set_client_secret "notip-simulator-backend" "$SIM_SECRET"
 
 ensure_mgmt_audience_mapper
 ensure_sub_mapper
+ensure_sub_impersonation_scope
 ensure_username_mapper
 ensure_user_profile_settings
 

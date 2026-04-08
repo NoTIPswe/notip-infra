@@ -114,7 +114,9 @@ services:
     environment:
       POSTGRES_DB:       ${MEASURES_DB_NAME:-notip_measures}
       POSTGRES_USER:    ${MEASURES_DB_USER:-notip_measures}
-      POSTGRES_PASSWORD: ${MEASURES_DB_PASSWORD}
+      POSTGRES_PASSWORD_FILE: /run/secrets/measures_db_password
+    secrets:
+      - measures_db_password
     volumes:
       - measures_db:/var/lib/postgresql/data
       - ca_certs:/certs:ro
@@ -271,6 +273,8 @@ services:
       NATS_TLS_CA:      /certs/ca.crt
       NATS_TLS_CERT:    /certs/data-api.crt
       NATS_TLS_KEY:     /certs/data-api.key
+    secrets:
+      - measures_db_password
     volumes:
       - ca_certs:/certs:ro
     depends_on:
@@ -447,7 +451,7 @@ volumes:
   measures_db:
   simulator_db:
 
-# Secrets
 secrets:
   measures_db_password:
     file: ./secrets/measures_db_password
+

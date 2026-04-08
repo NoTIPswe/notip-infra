@@ -33,8 +33,8 @@ gen_secret() {
     fi
     if [ "$env_var" = "MEASURES_DB_PASSWORD" ]; then
         echo -n "$value" > "$SECRETS_DIR/measures_db_password"
-        chmod 600 "$SECRETS_DIR/measures_db_password"
-        echo "  $env_var (and secrets/measures_db_password)"
+        chmod 644 "$SECRETS_DIR/measures_db_password"
+        echo "  $env_var (and secrets/measures_db_password, chmod 644)"
     fi
 }
 
@@ -48,3 +48,12 @@ gen_secret KEYCLOAK_DB_PASSWORD
 
 echo ""
 echo "Bootstrap complete. Next: make up"
+echo ""
+echo "IMPORTANT: For production, add the generated ./secrets/measures_db_password file as a Docker secret in your docker-compose.yml, e.g.:"
+echo ""
+echo "  secrets:"
+echo "    measures_db_password:"
+echo "      file: ./secrets/measures_db_password"
+echo ""
+echo "And reference it in your service definition under 'secrets:' for data-consumer."
+echo "If your container runs as a non-root user, ensure you use an entrypoint script to copy the secret to a readable location before starting the app."
