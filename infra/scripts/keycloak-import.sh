@@ -1,4 +1,3 @@
-
 #!/usr/bin/env bash
 # Imports the notip realm and configures service account secrets + roles.
 # Idempotent: skips realm import if it already exists.
@@ -7,7 +6,7 @@ set -euo pipefail
 KEYCLOAK_URL="${KEYCLOAK_URL:-http://keycloak:8080}"
 echo "DEBUG: KEYCLOAK_URL is $KEYCLOAK_URL"
 KEYCLOAK_ADMIN_USER="${KEYCLOAK_ADMIN_USER:-admin}"
-KEYCLOAK_ADMIN_PASSWORD="${KEYCLOAK_ADMIN_PASSWORD}"
+KEYCLOAK_ADMIN_PASSWORD="${KEYCLOAK_ADMIN_PASSWORD:?KEYCLOAK_ADMIN_PASSWORD must be set}"
 MGMT_SECRET="${KEYCLOAK_MGMT_CLIENT_SECRET}"
 SIM_SECRET="${KEYCLOAK_SIMULATOR_CLIENT_SECRET}"
 REALM_FILE="/keycloak/realm-export.json"

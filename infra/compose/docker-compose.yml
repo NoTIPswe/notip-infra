@@ -454,4 +454,3 @@ volumes:
 secrets:
   measures_db_password:
     file: ./secrets/measures_db_password
-
