@@ -33,13 +33,13 @@ services:
     environment:
       GF_AUTH_ANONYMOUS_ENABLED:  "true"
       GF_AUTH_ANONYMOUS_ORG_ROLE: "Viewer"
-      GF_SERVER_ROOT_URL:         "http://localhost:3000"
+      GF_SERVER_ROOT_URL:         "http://localhost:13000"
     volumes:
       - ../monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ../monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana_data:/var/lib/grafana
     ports:
-      - "3000:3000"
+      - "13000:3000"
     depends_on:
       - prometheus
     networks:
