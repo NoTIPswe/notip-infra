@@ -101,8 +101,11 @@ endef
 bootstrap:
 	@bash scripts/bootstrap.sh
 
-up:
+up-local:
 	@$(LOCAL_UP_SCRIPT)
+
+up:
+	@$(COMPOSE_CMD_ALL) up -d
 
 up-monitoring:
 	docker compose -f $(COMPOSE_MONITORING) up -d

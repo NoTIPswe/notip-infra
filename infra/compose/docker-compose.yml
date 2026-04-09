@@ -427,7 +427,7 @@ services:
       - internal
 
   sim-cli:
-    image: ${SIM_CLI_IMAGE:-notip-simulator-cli:local}
+    image: ${SIM_CLI_IMAGE:-notip-simulator-cli:latest}
     profiles:
       - cli
     environment:
