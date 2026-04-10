@@ -434,6 +434,7 @@ services:
 
   sim-cli:
     image: ${SIM_CLI_IMAGE:-notip-simulator-cli:latest}
+    platform: ${SIMULATOR_PLATFORM:-linux/amd64}
     profiles:
       - cli
     environment:
