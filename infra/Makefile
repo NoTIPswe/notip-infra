@@ -1,6 +1,7 @@
+
 COMPOSE_FILE := compose/docker-compose.yml
 COMPOSE_MONITORING := compose/docker-compose.monitoring.yml
-COMPOSE_CMD := docker compose --project-directory . -f ${COMPOSE_FILE} --profile simulator --profile cli
+COMPOSE_CMD := docker compose --project-directory . -f ${COMPOSE_FILE} --profile simulator
 
 
 define LOCAL_UP_SCRIPT

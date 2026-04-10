@@ -31,9 +31,11 @@ services:
   grafana:
     image: grafana/grafana:12.3
     environment:
-      GF_AUTH_ANONYMOUS_ENABLED:  "true"
-      GF_AUTH_ANONYMOUS_ORG_ROLE: "Viewer"
-      GF_SERVER_ROOT_URL:         "http://localhost:13000"
+        GF_AUTH_ANONYMOUS_ENABLED:  "false"
+        GF_ADMIN_USER: "admin"
+        GF_ADMIN_PASSWORD: "admin"
+        GF_AUTH_ANONYMOUS_ORG_ROLE: "Viewer"
+        GF_SERVER_ROOT_URL: "http://localhost:13000"
     volumes:
       - ../monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ../monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
