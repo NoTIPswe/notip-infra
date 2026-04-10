@@ -103,6 +103,39 @@ make reset
 make reset-all
 ```
 
+## Simulator CLI
+
+The `sim-cli` lets you manage the simulated gateway fleet interactively. The stack must already be running before using it.
+
+Open an interactive shell session:
+
+```bash
+cd infra
+docker compose --project-directory . -f compose/docker-compose.yml run --rm sim-cli shell
+```
+
+Inside the shell you can use all subcommands without the `docker compose run` prefix:
+
+```
+# Gateways
+gateways list
+gateways create --factory-id FAC-001 --factory-key KEY-001 --model GW-X --firmware 1.0.0 --freq 1000
+gateways bulk --count 5 --factory-id FAC-001 --factory-key KEY-001 --model GW-X --firmware 1.0.0 --freq 1000
+gateways delete <gateway-uuid>
+
+# Sensors
+sensors add <gateway-id-or-uuid> --type temperature --min 20.0 --max 80.0 --algorithm uniform_random
+
+# Anomalies
+anomalies disconnect <gateway-uuid> --duration 10
+```
+
+Or run a single command non-interactively:
+
+```bash
+docker compose --project-directory . -f compose/docker-compose.yml run --rm -it sim-cli gateways list
+```
+
 ## Database migrations
 
 ```bash
