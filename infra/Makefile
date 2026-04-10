@@ -1,7 +1,7 @@
 COMPOSE_FILE := compose/docker-compose.yml
 COMPOSE_MONITORING := compose/docker-compose.monitoring.yml
-COMPOSE_CMD := docker compose --project-directory . -f ${COMPOSE_FILE}
-COMPOSE_CMD_ALL := docker compose --project-directory . -f ${COMPOSE_FILE} --profile simulator --profile cli
+COMPOSE_CMD := docker compose --project-directory . -f ${COMPOSE_FILE} --profile simulator --profile cli
+
 
 define LOCAL_UP_SCRIPT
 set -eu; \
@@ -105,7 +105,7 @@ up-local:
 	@$(LOCAL_UP_SCRIPT)
 
 up:
-	@$(COMPOSE_CMD_ALL) up -d
+	@$(COMPOSE_CMD) up -d
 
 up-monitoring:
 	docker compose -f $(COMPOSE_MONITORING) up -d
@@ -124,7 +124,7 @@ down-monitoring:
 # Preserves provisioned gateway certificates.
 reset:
 	-docker compose -f $(COMPOSE_MONITORING) down
-	$(COMPOSE_CMD_ALL) down
+	$(COMPOSE_CMD) down
 	@docker volume ls --format '{{.Name}}' \
 	  | grep '^notip_' \
 	  | grep -v 'notip_ca_certs' \
@@ -137,7 +137,7 @@ reset-all:
 	@echo "WARNING: This will destroy CA volume and invalidate all gateway certs."
 	@read -p "Are you sure? [y/N] " confirm && [ "$$confirm" = "y" ]
 	-docker compose -f $(COMPOSE_MONITORING) down
-	$(COMPOSE_CMD_ALL) down -v
+	$(COMPOSE_CMD) down -v
 
 logs:
 	${COMPOSE_CMD} logs -f
