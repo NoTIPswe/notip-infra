@@ -194,6 +194,7 @@ services:
 
   # Application services
   management-api:
+    platform: ${MGMT_API_PLATFORM:-linux/amd64}
     image: ${MGMT_API_IMAGE:-ghcr.io/notipswe/notip-management-api:latest}
     command: ["dist/src/main"]
     env_file:
@@ -244,6 +245,7 @@ services:
       - internal
 
   data-api:
+    platform: ${DATA_API_PLATFORM:-linux/amd64}
     image: ${DATA_API_IMAGE:-ghcr.io/notipswe/notip-data-api:latest}
     entrypoint:
       - /bin/sh
@@ -293,6 +295,7 @@ services:
       - internal
 
   data-consumer:
+    platform: ${DATA_CONSUMER_PLATFORM:-linux/amd64}
     image: ${DATA_CONSUMER_IMAGE:-ghcr.io/notipswe/notip-data-consumer:latest}
     env_file:
       - .env
@@ -331,6 +334,7 @@ services:
       - internal
 
   provisioning-service:
+    platform: ${PROVISIONING_PLATFORM:-linux/amd64}
     image: ${PROVISIONING_IMAGE:-ghcr.io/notipswe/notip-provisioning-service:latest}
     command: ["dist/src/main"]
     env_file:
@@ -364,6 +368,7 @@ services:
       - internal
 
   frontend:
+    platform: ${FRONTEND_PLATFORM:-linux/amd64}
     image: ${FRONTEND_IMAGE:-ghcr.io/notipswe/notip-frontend:latest}
     volumes:
       - ./nginx/frontend/default.conf:/etc/nginx/conf.d/default.conf:ro
@@ -393,6 +398,7 @@ services:
 
   # Simulator (opt-in: docker compose --profile simulator up)
   simulator:
+    platform: ${SIMULATOR_PLATFORM:-linux/amd64}
     image: ${SIMULATOR_IMAGE:-ghcr.io/notipswe/notip-simulator-backend:latest}
     env_file:
       - .env
