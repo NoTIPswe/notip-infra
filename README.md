@@ -4,17 +4,17 @@ The infrastructure repository for the NoTIP platform. It owns the Docker Compose
 
 ## Repository layout
 
-| Folder | Contents |
-|--------|----------|
-| `infra/compose/` | `docker-compose.yml` and overrides for the full platform stack |
-| `infra/nats/` | NATS JetStream configuration and mTLS certificates |
-| `infra/keycloak/` | Realm export and Keycloak bootstrap configuration |
-| `infra/nginx/` | Reverse-proxy routing rules (API gateway) |
-| `infra/monitoring/` | Prometheus scrape config and Grafana dashboard provisioning |
-| `infra/secrets/` | Docker secrets templates (never commit real values) |
-| `infra/scripts/` | Helper scripts (`bootstrap.sh`, `healthcheck.sh`, `keycloak-import.sh`) |
-| `containers/` | Multi-stage Dockerfiles for each tech stack (`angular`, `go`, `nest`, `infra`) |
-| `api-contracts/` | Shared OpenAPI / AsyncAPI specs and the crypto contract |
+| Folder              | Contents                                                                       |
+| ------------------- | ------------------------------------------------------------------------------ |
+| `infra/compose/`    | `docker-compose.yml` and overrides for the full platform stack                 |
+| `infra/nats/`       | NATS JetStream configuration and mTLS certificates                             |
+| `infra/keycloak/`   | Realm export and Keycloak bootstrap configuration                              |
+| `infra/nginx/`      | Reverse-proxy routing rules (API gateway)                                      |
+| `infra/monitoring/` | Prometheus scrape config and Grafana dashboard provisioning                    |
+| `infra/secrets/`    | Docker secrets templates (never commit real values)                            |
+| `infra/scripts/`    | Helper scripts (`bootstrap.sh`, `healthcheck.sh`, `keycloak-import.sh`)        |
+| `containers/`       | Multi-stage Dockerfiles for each tech stack (`angular`, `go`, `nest`, `infra`) |
+| `api-contracts/`    | Shared OpenAPI / AsyncAPI specs and the crypto contract                        |
 
 ## Services in the stack
 
@@ -52,13 +52,7 @@ make up-with-migrations
 
 This pulls all service images, starts every container, and runs TypeORM migrations for both the Management API and the Data API.
 
-**3. Import the Keycloak realm (first boot only):**
-
-```bash
-make keycloak-import
-```
-
-**4. Verify everything is healthy:**
+**3. Verify everything is healthy:**
 
 ```bash
 make health
@@ -157,12 +151,12 @@ make down-monitoring         # stop monitoring services
 
 The `containers/` folder provides multi-stage Dockerfiles for four stacks:
 
-| Stack | Use case |
-|-------|----------|
-| `angular` | Frontend builds and devcontainer |
-| `nest` | NestJS service builds and devcontainer |
-| `go` | Go service builds and devcontainer |
-| `infra` | Infrastructure devcontainer (Docker-in-Docker) |
+| Stack     | Use case                                       |
+| --------- | ---------------------------------------------- |
+| `angular` | Frontend builds and devcontainer               |
+| `nest`    | NestJS service builds and devcontainer         |
+| `go`      | Go service builds and devcontainer             |
+| `infra`   | Infrastructure devcontainer (Docker-in-Docker) |
 
 Each Dockerfile exposes three targets: `base` (shared runtime), `dev` (base + `pre-commit` and `sonar-scanner`), and `prod` (minimal runtime for deployment).
 
