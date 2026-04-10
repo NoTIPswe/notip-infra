@@ -148,6 +148,8 @@ services:
       - --metrics-enabled=true
       - --proxy-headers=xforwarded
       - --hostname-strict=false
+      - --spi-theme--cache-themes=false
+      - --spi-theme--cache-templates=false
     environment:
       KC_DB_PASSWORD:              ${KEYCLOAK_DB_PASSWORD}
       KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN_USER:-admin}
@@ -158,6 +160,8 @@ services:
       KC_HOSTNAME_STRICT:       "false"
       KC_HOSTNAME_STRICT_HTTPS: "false"
       KC_HTTP_ENABLED:         "true"
+    volumes:
+      - ./keycloak/themes:/opt/keycloak/themes:ro
     depends_on:
       keycloak-db:
         condition: service_healthy
