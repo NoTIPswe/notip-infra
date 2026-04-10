@@ -1,6 +1,7 @@
 {
   "realm": "notip",
   "displayName": "NoTIP",
+  "loginTheme": "notip",
   "enabled": true,
   "sslRequired": "external",
   "registrationAllowed": false,

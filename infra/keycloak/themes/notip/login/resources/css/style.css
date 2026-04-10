@@ -1,0 +1,172 @@
+:root {
+  --notip-bg: #ffffff;
+  --notip-bg-soft: #ffffff;
+  --notip-border: #cbd5e1;
+  --notip-text: #111827;
+  --notip-text-soft: #475569;
+  --notip-primary: #1d4ed8;
+  --notip-primary-strong: #1e40af;
+  --notip-primary-soft: #eff6ff;
+}
+
+html,
+body,
+body.login-pf,
+.login-pf-page {
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  color: var(--notip-text);
+  background: #ffffff !important;
+  background-image: none !important;
+}
+
+.login-pf-page {
+  min-height: 100vh;
+  padding: 1.25rem;
+}
+
+.login-pf-page .card-pf {
+  display: flex;
+  flex-direction: column;
+  width: min(100%, 520px);
+  margin: 0 auto;
+  border-radius: 10px;
+  border: 1px solid var(--notip-border);
+  background: var(--notip-bg);
+  box-shadow: 0 24px 64px rgba(15, 23, 42, 0.35);
+  padding: 1rem;
+}
+
+.login-pf-page .form-control {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  color: var(--notip-text);
+  background: #ffffff;
+}
+
+.login-pf-page .form-control:focus {
+  border-color: var(--notip-primary);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.pf-c-button.pf-m-primary,
+.login-pf-page .btn-primary {
+  background-color: var(--notip-primary);
+  border-color: var(--notip-primary);
+  border-radius: 8px;
+}
+
+.pf-c-button.pf-m-primary:hover,
+.login-pf-page .btn-primary:hover,
+.pf-c-button.pf-m-primary:focus,
+.login-pf-page .btn-primary:focus {
+  background-color: var(--notip-primary-strong);
+  border-color: var(--notip-primary-strong);
+}
+
+.login-pf-page .btn-default,
+.login-pf-page .btn-secondary,
+.login-pf-page .pf-c-button.pf-m-secondary,
+.login-pf-page .pf-c-button.pf-m-control,
+.login-pf-page input[type="submit"].btn-default,
+.login-pf-page button[name="cancel-aia"] {
+  border: 1px solid #cbd5e1 !important;
+  border-radius: 8px;
+  background: #ffffff !important;
+  color: #1e293b !important;
+}
+
+.login-pf-page .btn-default:hover,
+.login-pf-page .btn-secondary:hover,
+.login-pf-page .pf-c-button.pf-m-secondary:hover,
+.login-pf-page .pf-c-button.pf-m-control:hover,
+.login-pf-page input[type="submit"].btn-default:hover,
+.login-pf-page button[name="cancel-aia"]:hover,
+.login-pf-page .btn-default:focus,
+.login-pf-page .btn-secondary:focus,
+.login-pf-page .pf-c-button.pf-m-secondary:focus,
+.login-pf-page .pf-c-button.pf-m-control:focus,
+.login-pf-page input[type="submit"].btn-default:focus,
+.login-pf-page button[name="cancel-aia"]:focus {
+  background: #f8fafc !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+.login-pf-page .login-pf-settings a,
+.login-pf-page a {
+  color: var(--notip-primary);
+}
+
+#kc-header-wrapper {
+  font-size: 0;
+  line-height: 0;
+  margin-bottom: 0.75rem;
+}
+
+#kc-header-wrapper::before {
+  content: "";
+  display: block;
+  width: min(420px, 86vw);
+  height: clamp(72px, 9vw, 108px);
+  margin: 0 auto;
+  background: url("../img/logo.png") center center / contain no-repeat;
+}
+
+#kc-form-options,
+.login-pf-page .instruction,
+.login-pf-page .alert {
+  color: var(--notip-text-soft);
+}
+
+.login-pf-page .card-pf p {
+  color: var(--notip-text-soft);
+}
+
+.login-pf-page #kc-content-wrapper,
+.login-pf-page #kc-content {
+  display: flex;
+  flex-direction: column;
+}
+
+#kc-page-title,
+.login-pf-page .card-pf h1,
+.login-pf-page .card-pf h2 {
+  font-weight: 700;
+}
+
+.login-pf-page #kc-page-title,
+.login-pf-page .card-pf h1,
+.login-pf-page .card-pf h2 {
+  order: 1;
+  width: 100%;
+  text-align: center !important;
+  margin-bottom: 0.5rem;
+}
+
+.login-pf-page #kc-required-fields {
+  order: 2;
+  margin-top: 0;
+  margin-bottom: 1rem;
+}
+
+.login-pf-page #kc-form,
+.login-pf-page .card-pf form {
+  order: 3;
+}
+
+.login-pf-page #kc-required-fields {
+  display: none !important;
+}
+
+.login-pf-page .card-pf:has(#kc-required-fields) #kc-page-title::after,
+.login-pf-page .card-pf:has(#kc-required-fields) h1::after,
+.login-pf-page .card-pf:has(#kc-required-fields) h2::after {
+  content: "* Required fields";
+  display: block;
+  margin-top: 0.65rem;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+  font-weight: 400;
+  text-align: left;
+  color: var(--notip-text-soft);
+}
