@@ -95,9 +95,8 @@ define RUN_MIGRATION
 $(COMPOSE_CMD) exec -T $(1) node ./node_modules/typeorm/cli.js -d dist/src/database/data-source.js migration:$(2)
 endef
 
-.PHONY: bootstrap up up-with-migrations up-monitoring down reset reset-all logs ps keycloak-import health lint \
-	migration-run migration-revert migration-run-management migration-revert-management \
-	migration-run-data migration-revert-data migration-run-all migration-revert-all
+.PHONY: bootstrap up up-new-images up-monitoring down reset reset-all logs ps health lint
+
 
 bootstrap:
 	@bash scripts/bootstrap.sh
@@ -111,9 +110,9 @@ up:
 up-monitoring:
 	docker compose -f $(COMPOSE_MONITORING) up -d
 
-up-with-migrations:
-	@$(MAKE) up LOCAL="$(or $(LOCAL),$(local))"
-	@$(MAKE) migration-run-all
+up-new-images:
+	@$(COMPOSE_CMD) build
+	@$(COMPOSE_CMD) up -d
 
 down:
 	$(COMPOSE_CMD) down
@@ -149,32 +148,8 @@ logs-svc:
 ps:
 	$(COMPOSE_CMD) ps
 
-keycloak-import:
-	@bash scripts/keycloak-import.sh
-
 health:
 	@bash scripts/healthcheck.sh
 
 lint:
 	pre-commit run --all-files
-
-
-migration-run-management:
-	@$(call RUN_MIGRATION,management-api,run)
-
-migration-revert-management:
-	@$(call RUN_MIGRATION,management-api,revert)
-
-migration-run-data:
-	@$(call RUN_MIGRATION,data-api,run)
-
-migration-revert-data:
-	@$(call RUN_MIGRATION,data-api,revert)
-
-migration-run-all: migration-run-management migration-run-data
-
-migration-revert-all: migration-revert-data migration-revert-management
-
-migration-run: migration-run-management
-
-migration-revert: migration-revert-management
