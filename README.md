@@ -47,10 +47,10 @@ This copies `.env.example` → `.env` and generates random values for all secret
 **2. Start the full stack with database migrations:**
 
 ```bash
-make up-with-migrations
+make up
 ```
 
-This pulls all service images, starts every container, and runs TypeORM migrations for both the Management API and the Data API.
+This pulls all service images and starts every container.
 
 **3. Verify everything is healthy:**
 
@@ -128,16 +128,6 @@ Or run a single command non-interactively:
 
 ```bash
 docker compose --project-directory . -f compose/docker-compose.yml run --rm -it sim-cli gateways list
-```
-
-## Database migrations
-
-```bash
-make migration-run-all       # run pending migrations for all services
-make migration-revert-all    # revert the last migration for all services
-
-make migration-run-management    # Management API only
-make migration-run-data          # Data API only
 ```
 
 ## Monitoring stack
