@@ -67,6 +67,7 @@ services:
       POSTGRES_DB:       keycloak
       POSTGRES_USER:    keycloak
       POSTGRES_PASSWORD: ${KEYCLOAK_DB_PASSWORD}
+      PGDATA: /var/lib/postgresql/data
     volumes:
       - keycloak_db:/var/lib/postgresql/data
     healthcheck:
@@ -86,6 +87,7 @@ services:
       POSTGRES_DB:       ${MGMT_DB_NAME:-notip_mgmt}
       POSTGRES_USER:    ${MGMT_DB_USER:-notip_mgmt}
       POSTGRES_PASSWORD: ${MGMT_DB_PASSWORD}
+      PGDATA: /var/lib/postgresql/data
     volumes:
       - mgmt_db:/var/lib/postgresql/data
     healthcheck:
@@ -115,6 +117,7 @@ services:
       POSTGRES_DB:       ${MEASURES_DB_NAME:-notip_measures}
       POSTGRES_USER:    ${MEASURES_DB_USER:-notip_measures}
       POSTGRES_PASSWORD_FILE: /run/secrets/measures_db_password
+      PGDATA: /var/lib/postgresql/data
     secrets:
       - measures_db_password
     volumes:
