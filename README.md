@@ -101,6 +101,8 @@ make reset-all
 
 The `sim-cli` lets you manage the simulated gateway fleet interactively. The stack must already be running before using it.
 
+> **Prerequisite:** before creating a simulated gateway, a tenant admin must have already registered a gateway entry (with the matching `factory-id` and `factory-key`) in the dashboard. Only pre-registered gateways are allowed to be provisioned by the application.
+
 Open an interactive shell session:
 
 ```bash
@@ -118,6 +120,8 @@ gateways bulk --count 5 --factory-id FAC-001 --factory-key KEY-001 --model GW-X 
 gateways delete <gateway-uuid>
 
 # Sensors
+# The gateway must already exist. Use its UUID, which is shared between the CLI and the backend
+# (visible via `gateways list` and matching the ID shown in the dashboard).
 sensors add <gateway-id-or-uuid> --type temperature --min 20.0 --max 80.0 --algorithm uniform_random
 
 # Anomalies
